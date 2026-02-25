@@ -36,3 +36,10 @@ Plugins/*/Intermediate/
 
 # Log files
 *.log
+
+# UE Cache / Derived Data
+**/DDC/
+**/DerivedDataCache/
+**/__ExternalActors__/
+**/__ExternalObjects__/
+Content/StarterContent/
