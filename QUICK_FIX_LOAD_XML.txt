@@ -1,0 +1,28 @@
+// Quick fix: Load XML directly at runtime
+if (BehaviacAgent)
+{
+	// Load XML file content
+	FString XMLPath = FPaths::ProjectContentDir() / TEXT("AI/BT_SimpleNPC.xml");
+	FString XMLContent;
+	
+	if (FFileHelper::LoadFileToString(XMLContent, *XMLPath))
+	{
+		// Create a transient behavior tree
+		UBehaviacBehaviorTree* RuntimeTree = NewObject<UBehaviacBehaviorTree>(this);
+		RuntimeTree->TreeName = TEXT("BT_SimpleNPC");
+		
+		if (RuntimeTree->LoadFromXML(XMLContent))
+		{
+			BehaviacAgent->LoadBehaviorTree(RuntimeTree);
+			UE_LOG(LogTemp, Warning, TEXT("✅ Loaded XML directly!"));
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("❌ Failed to parse XML!"));
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("❌ Failed to read XML file: %s"), *XMLPath);
+	}
+}

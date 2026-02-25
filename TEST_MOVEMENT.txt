@@ -1,0 +1,24 @@
+// Add this test to BehaviacAINPC.cpp BeginPlay to force movement:
+
+void ABehaviacAINPC::BeginPlay()
+{
+	Super::BeginPlay();
+
+	// ... existing code ...
+
+	// TEMPORARY TEST: Force simple movement
+	if (AAIController* AIController = Cast<AAIController>(GetController()))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("✅ AI Controller found!"));
+		
+		// Try moving to a point 500 units forward
+		FVector TestTarget = GetActorLocation() + GetActorForwardVector() * 500.0f;
+		AIController->MoveToLocation(TestTarget, 50.0f);
+		
+		UE_LOG(LogTemp, Warning, TEXT("🚶 Commanded NPC to move to: %s"), *TestTarget.ToString());
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("❌ NO AI CONTROLLER! Auto Possess AI might not be working!"));
+	}
+}

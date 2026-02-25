@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<behavior name="BT_Test_Simple" agenttype="BTAgent" version="5">
+  <node class="Selector" id="0">
+    <property name="Name" value="Root"/>
+    <node class="Sequence" id="2">
+      <property name="Name" value="ChasePlayer"/>
+      <node class="Condition" id="3">
+        <property name="Name" value="HasTargetCheck"/>
+        <property name="Opl" value="Self.hasTarget"/>
+        <property name="Operator" value="Equal"/>
+        <property name="Opr" value="true"/>
+      </node>
+      <node class="Action" id="4">
+        <property name="Name" value="MoveToTarget"/>
+        <property name="Method" value="MoveToTarget"/>
+        <property name="ResultOption" value="BT_SUCCESS"/>
+      </node>
+    </node>
+    <node class="Action" id="5">
+      <property name="Name" value="Patrol"/>
+      <property name="Method" value="Patrol"/>
+      <property name="ResultOption" value="BT_SUCCESS"/>
+    </node>
+  </node>
+</behavior>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<behavior>
+  <!-- Ultra-simple test: just call Patrol action -->
+  <node class="Action">
+    <property name="Method" value="Patrol"/>
+  </node>
+</behavior>

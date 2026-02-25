@@ -1,0 +1,38 @@
+# Unreal Engine
+Binaries/
+Build/
+DerivedDataCache/
+Intermediate/
+Saved/
+*.sln
+*.suo
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.opendb
+
+# Xcode
+*.xcworkspace/
+*.xcodeproj/
+
+# Visual Studio
+.vs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Compiled source
+*.pdb
+*.lib
+*.exp
+*.dll
+*.exe
+*.dylib
+
+# Plugins - keep only source
+Plugins/*/Binaries/
+Plugins/*/Intermediate/
+
+# Log files
+*.log
