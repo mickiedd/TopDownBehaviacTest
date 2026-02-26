@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  BT_PatrolGuard - Realistic patrol guard behavior tree.
+
+  AIState blackboard values (set by UpdateAIState every tick):
+    "Combat"       - Player within AttackRange
+    "Chase"        - Player in DetectionRadius AND within GuardRadius
+    "Investigate"  - Player just lost, heading to last known pos
+    "ReturnToPost" - Player left GuardRadius, or NPC drifted from post
+    "Patrol"       - Default
+
+  Structure:
+    Parallel (ChildFinishPolicy=Loop)
+      [0] DecoratorAlwaysSuccess → UpdateAIState   (runs every tick, never stops parallel)
+      [1] DecoratorLoop(-1) → SelectorLoop          (loops behaviour forever)
+            WithPrecondition → Combat
+            WithPrecondition → Chase
+            WithPrecondition → Investigate
+            WithPrecondition → ReturnToPost
+            Sequence         → Patrol               (fallthrough)
+-->
+<behavior name="BT_PatrolGuard" agenttype="BTAgent" version="5">
+
+  <node class="Parallel" id="1">
+    <property name="Name" value="Root"/>
+    <property name="FailurePolicy" value="FailOnOne_SucceedOnAll"/>
+    <property name="ChildFinishPolicy" value="CHILDFINISH_LOOP"/>
+
+    <!-- ── CHILD 0: State updater ─────────────────────────────────────── -->
+    <node class="DecoratorAlwaysSuccess" id="2">
+      <node class="Action" id="3">
+        <property name="Name" value="UpdateAIState"/>
+        <property name="Method" value="UpdateAIState"/>
+      </node>
+    </node>
+
+    <!-- ── CHILD 1: Behaviour selector (loops forever) ────────────────── -->
+    <node class="DecoratorLoop" id="4">
+      <property name="Count" value="-1"/>
+
+      <node class="SelectorLoop" id="5">
+        <property name="Name" value="BehaviourSelector"/>
+
+        <!-- BRANCH 1: COMBAT ─────────────────────────────────────────── -->
+        <node class="WithPrecondition" id="6">
+          <node class="Condition" id="7">
+            <property name="Opl" value="Self.AIState"/>
+            <property name="Operator" value="Equal"/>
+            <property name="Opr" value="Combat"/>
+          </node>
+          <node class="Sequence" id="8">
+            <property name="Name" value="CombatSequence"/>
+            <node class="Action" id="9">
+              <property name="Name" value="StopMovement"/>
+              <property name="Method" value="StopMovement"/>
+            </node>
+            <node class="Action" id="10">
+              <property name="Name" value="FaceTarget"/>
+              <property name="Method" value="FaceTarget"/>
+            </node>
+            <node class="DecoratorLoop" id="11">
+              <property name="Count" value="-1"/>
+              <node class="Sequence" id="12">
+                <node class="Action" id="13">
+                  <property name="Name" value="AttackPlayer"/>
+                  <property name="Method" value="AttackPlayer"/>
+                </node>
+                <node class="Wait" id="14">
+                  <property name="Time" value="1.2"/>
+                </node>
+              </node>
+            </node>
+          </node>
+        </node>
+
+        <!-- BRANCH 2: CHASE ──────────────────────────────────────────── -->
+        <node class="WithPrecondition" id="15">
+          <node class="Condition" id="16">
+            <property name="Opl" value="Self.AIState"/>
+            <property name="Operator" value="Equal"/>
+            <property name="Opr" value="Chase"/>
+          </node>
+          <node class="Sequence" id="17">
+            <property name="Name" value="ChaseSequence"/>
+            <node class="Action" id="18">
+              <property name="Name" value="SetRunSpeed"/>
+              <property name="Method" value="SetRunSpeed"/>
+            </node>
+            <node class="DecoratorLoop" id="19">
+              <property name="Count" value="-1"/>
+              <node class="Sequence" id="20">
+                <node class="Action" id="21">
+                  <property name="Name" value="ChasePlayer"/>
+                  <property name="Method" value="ChasePlayer"/>
+                </node>
+                <node class="WaitFrames" id="22">
+                  <property name="Count" value="6"/>
+                </node>
+              </node>
+            </node>
+          </node>
+        </node>
+
+        <!-- BRANCH 3: RETURN TO POST ─────────────────────────────────── -->
+        <node class="WithPrecondition" id="33">
+          <node class="Condition" id="34">
+            <property name="Opl" value="Self.AIState"/>
+            <property name="Operator" value="Equal"/>
+            <property name="Opr" value="ReturnToPost"/>
+          </node>
+          <node class="Sequence" id="35">
+            <property name="Name" value="ReturnToPostSequence"/>
+            <node class="Action" id="36">
+              <property name="Name" value="SetWalkSpeed"/>
+              <property name="Method" value="SetWalkSpeed"/>
+            </node>
+            <node class="DecoratorLoopUntil" id="37">
+              <property name="UntilSuccess" value="true"/>
+              <node class="Action" id="38">
+                <property name="Name" value="ReturnToPost"/>
+                <property name="Method" value="ReturnToPost"/>
+              </node>
+            </node>
+          </node>
+        </node>
+
+        <!-- BRANCH 5: PATROL (fallthrough) ──────────────────────────── -->
+        <node class="Sequence" id="39">
+          <property name="Name" value="PatrolSequence"/>
+          <node class="Action" id="40">
+            <property name="Name" value="SetWalkSpeed"/>
+            <property name="Method" value="SetWalkSpeed"/>
+          </node>
+          <node class="Action" id="41">
+            <property name="Name" value="Patrol"/>
+            <property name="Method" value="Patrol"/>
+          </node>
+          <node class="Wait" id="42">
+            <property name="Time" value="2.0"/>
+          </node>
+          <node class="Sequence" id="43">
+            <property name="Name" value="ScanAtWaypoint"/>
+            <node class="Action" id="44">
+              <property name="Name" value="LookAround"/>
+              <property name="Method" value="LookAround"/>
+            </node>
+            <node class="Wait" id="45">
+              <property name="Time" value="1.5"/>
+            </node>
+            <node class="Action" id="46">
+              <property name="Name" value="FindPlayer"/>
+              <property name="Method" value="FindPlayer"/>
+            </node>
+            <!-- AlwaysSuccess so patrol continues even when no player found -->
+            <node class="DecoratorAlwaysSuccess" id="47">
+              <node class="Noop" id="48"/>
+            </node>
+          </node>
+        </node>
+
+      </node><!-- /SelectorLoop -->
+    </node><!-- /DecoratorLoop -->
+
+  </node><!-- /Parallel -->
+
+</behavior>

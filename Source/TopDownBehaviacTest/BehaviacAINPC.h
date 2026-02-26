@@ -65,6 +65,57 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "AI|Actions")
 	bool IsPlayerInRange();
 
+	// ── New actions for BT_PatrolGuard ──────────────────────────────────
+
+	/** Scan surroundings, update AIState blackboard property:
+	 *  "Combat" / "Chase" / "Investigate" / "Patrol" */
+	UFUNCTION(BlueprintCallable, Category = "AI|Actions")
+	EBehaviacStatus UpdateAIState();
+
+	/** Sprint toward TargetPlayer. Returns Running while moving, Success when close. */
+	UFUNCTION(BlueprintCallable, Category = "AI|Actions")
+	EBehaviacStatus ChasePlayer();
+
+	/** Melee/ranged attack. Returns Success always (damage dealt elsewhere). */
+	UFUNCTION(BlueprintCallable, Category = "AI|Actions")
+	EBehaviacStatus AttackPlayer();
+
+	/** Stop movement immediately. */
+	UFUNCTION(BlueprintCallable, Category = "AI|Actions")
+	EBehaviacStatus StopMovement();
+
+	/** Rotate to face TargetPlayer. */
+	UFUNCTION(BlueprintCallable, Category = "AI|Actions")
+	EBehaviacStatus FaceTarget();
+
+	/** Apply walk speed to CharacterMovement. */
+	UFUNCTION(BlueprintCallable, Category = "AI|Actions")
+	EBehaviacStatus SetWalkSpeed();
+
+	/** Apply run speed to CharacterMovement. */
+	UFUNCTION(BlueprintCallable, Category = "AI|Actions")
+	EBehaviacStatus SetRunSpeed();
+
+	/** Navigate to LastKnownPlayerPos. Returns Running → Success on arrival. */
+	UFUNCTION(BlueprintCallable, Category = "AI|Actions")
+	EBehaviacStatus MoveToLastKnownPos();
+
+	/** Rotate left/right to simulate looking around. */
+	UFUNCTION(BlueprintCallable, Category = "AI|Actions")
+	EBehaviacStatus LookAround();
+
+	/** Clear LastKnownPlayerPos and reset Investigate state → Patrol. */
+	UFUNCTION(BlueprintCallable, Category = "AI|Actions")
+	EBehaviacStatus ClearLastKnownPos();
+
+	/** Walk back to GuardCenter when player has left GuardRadius. */
+	UFUNCTION(BlueprintCallable, Category = "AI|Actions")
+	EBehaviacStatus ReturnToPost();
+
+	// Guard ground config (editable in Blueprint/level)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Guard")
+	float GuardRadius;
+
 	// Property accessors for Behaviac
 	UFUNCTION(BlueprintCallable, Category = "AI|Behaviac")
 	void SetBehaviacProperty(const FString& Key, const FString& Value);
@@ -80,4 +131,15 @@ private:
 	// Per-instance tick counter (avoids static-local counter persisting across PIE sessions)
 	int32 TickCounter;
 	float DebugTimer;
+
+	// Guard state
+	FVector LastKnownPlayerPos;
+	bool bHasLastKnownPos;
+	float LookAroundYaw;       // Accumulated yaw for LookAround
+	int32 LookAroundDir;       // +1 or -1
+	float AttackRange;         // Range to switch to Combat state
+	float CombatRange;         // Range to keep attacking before backing off
+
+	// Guard ground
+	FVector GuardCenter;       // Initialized to spawn location in BeginPlay
 };

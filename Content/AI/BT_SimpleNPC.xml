@@ -4,12 +4,11 @@
     <property name="Name" value="MainBehavior"/>
     <node class="Sequence" id="3">
       <property name="Name" value="ChasePlayer"/>
-      <attachment class="Precondition" id="4">
-        <property name="Opl" value="Self.hasTarget"/>
-        <property name="Operator" value="Equal"/>
-        <property name="Opr" value="true"/>
-        <property name="Phase" value="Enter"/>
-      </attachment>
+      <node class="Action" id="4">
+        <property name="Name" value="FindPlayer"/>
+        <property name="Method" value="FindPlayer"/>
+        <property name="ResultOption" value="BT_SUCCESS"/>
+      </node>
       <node class="Action" id="5">
         <property name="Name" value="MoveToTarget"/>
         <property name="Method" value="MoveToTarget"/>

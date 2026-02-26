@@ -184,10 +184,13 @@ void UBehaviacParallel::LoadFromProperties(int32 Version, const FString& InAgent
 		}
 		else if (Prop.Name == TEXT("ChildFinishPolicy"))
 		{
-			if (Prop.Value == TEXT("CHILDFINISH_LOOP"))
+			if (Prop.Value == TEXT("CHILDFINISH_LOOP") || Prop.Value == TEXT("Loop"))
 				ChildFinishPolicy = EBehaviacChildFinishPolicy::Loop;
 			else
+			{
 				ChildFinishPolicy = EBehaviacChildFinishPolicy::Once;
+				UE_LOG(LogTemp, Warning, TEXT("[Parallel] ChildFinishPolicy='%s' → Once (not Loop). UpdateAIState will only run once!"), *Prop.Value);
+			}
 		}
 	}
 }
@@ -235,9 +238,17 @@ EBehaviacStatus UBehaviacParallelTask::OnUpdate(UBehaviacAgentComponent* Agent, 
 	for (int32 i = 0; i < ChildTasks.Num(); i++)
 	{
 		// Skip completed children if policy is Once
-		if (ParallelNode->ChildFinishPolicy == EBehaviacChildFinishPolicy::Once &&
+		bool bSkipping = (ParallelNode->ChildFinishPolicy == EBehaviacChildFinishPolicy::Once &&
 			ChildStatuses[i] != EBehaviacStatus::Invalid &&
-			ChildStatuses[i] != EBehaviacStatus::Running)
+			ChildStatuses[i] != EBehaviacStatus::Running);
+
+		UE_LOG(LogTemp, Warning, TEXT("[Parallel] Child[%d] FinishPolicy=%s CachedStatus=%d → %s"),
+			i,
+			ParallelNode->ChildFinishPolicy == EBehaviacChildFinishPolicy::Loop ? TEXT("Loop") : TEXT("Once"),
+			(int32)ChildStatuses[i],
+			bSkipping ? TEXT("SKIP ⚠️") : TEXT("EXECUTE"));
+
+		if (bSkipping)
 		{
 			if (ChildStatuses[i] == EBehaviacStatus::Success) SuccessCount++;
 			else if (ChildStatuses[i] == EBehaviacStatus::Failure) FailCount++;
@@ -246,6 +257,8 @@ EBehaviacStatus UBehaviacParallelTask::OnUpdate(UBehaviacAgentComponent* Agent, 
 
 		EBehaviacStatus Result = ChildTasks[i]->Execute(Agent, EBehaviacStatus::Invalid);
 		ChildStatuses[i] = Result;
+
+		UE_LOG(LogTemp, Warning, TEXT("[Parallel] Child[%d] executed → %d"), i, (int32)Result);
 
 		switch (Result)
 		{
@@ -339,6 +352,8 @@ bool UBehaviacSelectorLoopTask::OnEnter(UBehaviacAgentComponent* Agent)
 
 EBehaviacStatus UBehaviacSelectorLoopTask::OnUpdate(UBehaviacAgentComponent* Agent, EBehaviacStatus ChildStatus)
 {
+	UE_LOG(LogTemp, Warning, TEXT("[SelectorLoop] OnUpdate — ActiveChild=%d, ChildCount=%d"), ActiveChildIndex, ChildTasks.Num());
+
 	// Re-evaluate from the beginning to check if higher priority child is valid
 	for (int32 i = 0; i < ChildTasks.Num(); i++)
 	{
@@ -350,9 +365,11 @@ EBehaviacStatus UBehaviacSelectorLoopTask::OnUpdate(UBehaviacAgentComponent* Age
 			{
 				// Reset and try this child
 				EBehaviacStatus Result = ChildTasks[i]->Execute(Agent, EBehaviacStatus::Invalid);
+				UE_LOG(LogTemp, Warning, TEXT("[SelectorLoop] High-priority check child[%d] → %d"), i, (int32)Result);
 				if (Result != EBehaviacStatus::Failure)
 				{
 					// Interrupt current child
+					UE_LOG(LogTemp, Warning, TEXT("[SelectorLoop] ⚡ Interrupting child[%d] → switching to child[%d]"), ActiveChildIndex, i);
 					if (ChildTasks.IsValidIndex(ActiveChildIndex))
 					{
 						ChildTasks[ActiveChildIndex]->Reset(Agent);
@@ -365,6 +382,7 @@ EBehaviacStatus UBehaviacSelectorLoopTask::OnUpdate(UBehaviacAgentComponent* Age
 		else if (i == ActiveChildIndex)
 		{
 			EBehaviacStatus Result = ChildTasks[i]->Execute(Agent, ChildStatus);
+			UE_LOG(LogTemp, Warning, TEXT("[SelectorLoop] Active child[%d] → %d"), i, (int32)Result);
 
 			if (Result == EBehaviacStatus::Running)
 			{
@@ -380,6 +398,7 @@ EBehaviacStatus UBehaviacSelectorLoopTask::OnUpdate(UBehaviacAgentComponent* Age
 		}
 	}
 
+	UE_LOG(LogTemp, Warning, TEXT("[SelectorLoop] All children exhausted → Failure"));
 	return EBehaviacStatus::Failure;
 }
 
@@ -653,6 +672,9 @@ EBehaviacStatus UBehaviacWithPreconditionTask::OnUpdate(UBehaviacAgentComponent*
 
 	// First child: precondition
 	EBehaviacStatus PrecondResult = ChildTasks[0]->Execute(Agent, EBehaviacStatus::Invalid);
+
+	UE_LOG(LogTemp, Warning, TEXT("[WithPrecondition] Precondition → %s"),
+		PrecondResult == EBehaviacStatus::Success ? TEXT("PASS") : TEXT("FAIL"));
 
 	if (PrecondResult != EBehaviacStatus::Success)
 	{
