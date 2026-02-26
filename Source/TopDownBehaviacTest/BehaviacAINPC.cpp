@@ -283,34 +283,32 @@ EBehaviacStatus ABehaviacAINPC::Patrol()
 	FVector TargetPoint = PatrolPoints[CurrentPatrolIndex];
 	float Distance = FVector::Distance(GetActorLocation(), TargetPoint);
 
-	// Already close enough — advance to next waypoint
+	// Reached current waypoint — advance index and issue move to the next one
 	if (Distance < 100.0f)
 	{
 		CurrentPatrolIndex = (CurrentPatrolIndex + 1) % PatrolPoints.Num();
 		TargetPoint = PatrolPoints[CurrentPatrolIndex];
-		UE_LOG(LogTemp, Log, TEXT("✅ Patrol: Reached waypoint, advancing to point %d"), CurrentPatrolIndex);
-
-		// Issue move to next point and return Running — don't complete in the same tick
+		UE_LOG(LogTemp, Log, TEXT("✅ Patrol: Reached waypoint, moving to point %d at %s"),
+			CurrentPatrolIndex, *TargetPoint.ToString());
 		AIController->MoveToLocation(TargetPoint, 50.0f);
 		return EBehaviacStatus::Running;
 	}
 
-	// Check if the AI controller is already moving toward the right target
-	// (avoid re-issuing MoveToLocation every tick which interrupts the path)
+	// If the controller is already navigating, don't interrupt it — just stay Running
 	UPathFollowingComponent* PF = AIController->GetPathFollowingComponent();
-	bool bAlreadyMoving = PF && PF->GetStatus() == EPathFollowingStatus::Moving;
-
-	if (!bAlreadyMoving)
+	if (PF && PF->GetStatus() == EPathFollowingStatus::Moving)
 	{
-		EPathFollowingRequestResult::Type Result = AIController->MoveToLocation(TargetPoint, 50.0f);
-		if (Result == EPathFollowingRequestResult::Failed)
-		{
-			UE_LOG(LogTemp, Warning, TEXT("⚠️ Patrol: MoveToLocation failed (no NavMesh?)"));
-			return EBehaviacStatus::Failure;
-		}
-		UE_LOG(LogTemp, Log, TEXT("🚶 Patrol: Moving to point %d at %s"), CurrentPatrolIndex, *TargetPoint.ToString());
+		return EBehaviacStatus::Running;
 	}
 
+	// Not moving (idle, stopped after chase/return, or first call) — issue move
+	EPathFollowingRequestResult::Type Result = AIController->MoveToLocation(TargetPoint, 50.0f);
+	if (Result == EPathFollowingRequestResult::Failed)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("⚠️ Patrol: MoveToLocation failed (no NavMesh?)"));
+		return EBehaviacStatus::Failure;
+	}
+	UE_LOG(LogTemp, Log, TEXT("🚶 Patrol: Issued move to point %d at %s"), CurrentPatrolIndex, *TargetPoint.ToString());
 	return EBehaviacStatus::Running;
 }
 
@@ -414,15 +412,17 @@ EBehaviacStatus ABehaviacAINPC::UpdateAIState()
 			// Cannot see player (out of range or blocked)
 			if (bHasLastKnownPos || TargetPlayer != nullptr)
 			{
-				// Was chasing — stop and go home
+				// Was chasing — clear target and return to post
 				TargetPlayer = nullptr;
 				bHasLastKnownPos = false;
 				LastKnownPlayerPos = FVector::ZeroVector;
-				NewState = (DistFromPost > 150.0f) ? TEXT("ReturnToPost") : TEXT("Patrol");
+				NewState = TEXT("ReturnToPost");
 			}
 			else
 			{
-				NewState = (DistFromPost > 150.0f) ? TEXT("ReturnToPost") : TEXT("Patrol");
+				// No player involvement — let the Patrol branch handle its own movement
+				// Only force ReturnToPost if NPC somehow wandered very far (>GuardRadius) from post
+				NewState = (DistFromPost > GuardRadius) ? TEXT("ReturnToPost") : TEXT("Patrol");
 			}
 		}
 	}
@@ -431,7 +431,7 @@ EBehaviacStatus ABehaviacAINPC::UpdateAIState()
 		// No player in world
 		TargetPlayer = nullptr;
 		bHasLastKnownPos = false;
-		NewState = (DistFromPost > 150.0f) ? TEXT("ReturnToPost") : TEXT("Patrol");
+		NewState = (DistFromPost > GuardRadius) ? TEXT("ReturnToPost") : TEXT("Patrol");
 	}
 
 	if (BehaviacAgent)
