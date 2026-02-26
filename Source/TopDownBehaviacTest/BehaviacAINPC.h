@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "TopDownBehaviacTestCharacter.h"
 #include "BehaviacTypes.h" // For EBehaviacStatus
 #include "BehaviacAINPC.generated.h"
 
@@ -14,7 +15,7 @@ class UBehaviacBehaviorTree;
  * AI NPC Character controlled by Behaviac behavior tree
  */
 UCLASS()
-class TOPDOWNBEHAVIACTEST_API ABehaviacAINPC : public ACharacter
+class TOPDOWNBEHAVIACTEST_API ABehaviacAINPC : public ATopDownBehaviacTestCharacter
 {
 	GENERATED_BODY()
 

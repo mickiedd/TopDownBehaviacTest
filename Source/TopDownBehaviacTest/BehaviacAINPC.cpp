@@ -8,7 +8,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Navigation/PathFollowingComponent.h"
 
-ABehaviacAINPC::ABehaviacAINPC()
+ABehaviacAINPC::ABehaviacAINPC() : Super()
 {
 	PrimaryActorTick.bCanEverTick = true;
 
