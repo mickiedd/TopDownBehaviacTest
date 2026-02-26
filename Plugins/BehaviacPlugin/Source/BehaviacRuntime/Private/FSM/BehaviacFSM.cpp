@@ -131,6 +131,14 @@ void UBehaviacFSMStateTask::OnExit(UBehaviacAgentComponent* Agent, EBehaviacStat
 	}
 }
 
+EBehaviacStatus UBehaviacFSMStateTask::UpdateCurrent(UBehaviacAgentComponent* Agent, EBehaviacStatus ChildStatus)
+{
+	// FSM states are often leaf-like (no child behavior node).
+	// Always route through OnUpdate rather than deferring to SingleChildTask
+	// which would return Failure when ChildTask==nullptr.
+	return OnUpdate(Agent, ChildStatus);
+}
+
 EBehaviacStatus UBehaviacFSMStateTask::OnUpdate(UBehaviacAgentComponent* Agent, EBehaviacStatus ChildStatus)
 {
 	const UBehaviacFSMState* StateNode = Cast<UBehaviacFSMState>(Node);
@@ -155,7 +163,7 @@ EBehaviacStatus UBehaviacFSMStateTask::OnUpdate(UBehaviacAgentComponent* Agent, 
 
 UBehaviacBehaviorTask* UBehaviacWaitFramesState::CreateTask(UObject* Outer) const
 {
-	return NewObject<UBehaviacFSMStateTask>(Outer);
+	return NewObject<UBehaviacWaitFramesStateTask>(Outer);
 }
 
 void UBehaviacWaitFramesState::LoadFromProperties(int32 Version, const FString& InAgentType, const TArray<FBehaviacProperty>& Properties)
@@ -174,7 +182,7 @@ void UBehaviacWaitFramesState::LoadFromProperties(int32 Version, const FString& 
 
 UBehaviacBehaviorTask* UBehaviacWaitState::CreateTask(UObject* Outer) const
 {
-	return NewObject<UBehaviacFSMStateTask>(Outer);
+	return NewObject<UBehaviacWaitStateTask>(Outer);
 }
 
 void UBehaviacWaitState::LoadFromProperties(int32 Version, const FString& InAgentType, const TArray<FBehaviacProperty>& Properties)
@@ -333,4 +341,89 @@ UBehaviacBehaviorTask* UBehaviacFSMTask::FindStateTaskById(int32 StateId) const
 		}
 	}
 	return nullptr;
+}
+
+// ===================================================================
+// WAIT FRAMES STATE TASK
+// ===================================================================
+
+UBehaviacWaitFramesStateTask::UBehaviacWaitFramesStateTask()
+	: StartFrame(0)
+	, TargetFrames(1)
+{
+}
+
+bool UBehaviacWaitFramesStateTask::OnEnter(UBehaviacAgentComponent* Agent)
+{
+	// Run base state enter (EnterAction, etc.)
+	if (!Super::OnEnter(Agent))
+	{
+		return false;
+	}
+
+	const UBehaviacWaitFramesState* WFNode = Cast<UBehaviacWaitFramesState>(Node);
+	TargetFrames = WFNode ? FMath::Max(1, WFNode->WaitFrameCount) : 1;
+	StartFrame = static_cast<int32>(GFrameCounter);
+	return true;
+}
+
+EBehaviacStatus UBehaviacWaitFramesStateTask::OnUpdate(UBehaviacAgentComponent* Agent, EBehaviacStatus ChildStatus)
+{
+	int32 Elapsed = static_cast<int32>(GFrameCounter) - StartFrame;
+	if (Elapsed >= TargetFrames)
+	{
+		return EBehaviacStatus::Success;
+	}
+	return EBehaviacStatus::Running;
+}
+
+// ===================================================================
+// WAIT STATE TASK
+// ===================================================================
+
+UBehaviacWaitStateTask::UBehaviacWaitStateTask()
+	: StartTime(0.0)
+	, WaitDuration(1.0f)
+{
+}
+
+bool UBehaviacWaitStateTask::OnEnter(UBehaviacAgentComponent* Agent)
+{
+	if (!Super::OnEnter(Agent))
+	{
+		return false;
+	}
+
+	const UBehaviacWaitState* WaitNode = Cast<UBehaviacWaitState>(Node);
+	WaitDuration = WaitNode ? FMath::Max(0.0f, WaitNode->WaitDuration) : 1.0f;
+
+	if (UWorld* World = Agent ? Agent->GetWorld() : nullptr)
+	{
+		StartTime = World->GetTimeSeconds();
+	}
+	else
+	{
+		StartTime = FPlatformTime::Seconds();
+	}
+
+	return true;
+}
+
+EBehaviacStatus UBehaviacWaitStateTask::OnUpdate(UBehaviacAgentComponent* Agent, EBehaviacStatus ChildStatus)
+{
+	double CurrentTime = 0.0;
+	if (UWorld* World = Agent ? Agent->GetWorld() : nullptr)
+	{
+		CurrentTime = World->GetTimeSeconds();
+	}
+	else
+	{
+		CurrentTime = FPlatformTime::Seconds();
+	}
+
+	if ((CurrentTime - StartTime) >= WaitDuration)
+	{
+		return EBehaviacStatus::Success;
+	}
+	return EBehaviacStatus::Running;
 }

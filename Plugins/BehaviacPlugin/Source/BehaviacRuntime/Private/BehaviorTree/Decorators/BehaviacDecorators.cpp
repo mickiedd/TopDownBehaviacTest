@@ -10,6 +10,13 @@ DEFINE_LOG_CATEGORY_STATIC(LogBehaviacDecorator, Log, All);
 // BASE DECORATOR TASK
 // ===================================================================
 
+EBehaviacStatus UBehaviacDecoratorTask::UpdateCurrent(UBehaviacAgentComponent* Agent, EBehaviacStatus ChildStatus)
+{
+	// Route through OnUpdate so DecorateResult is applied.
+	// (UBehaviacSingleChildTask::UpdateCurrent skips OnUpdate, so we override here.)
+	return OnUpdate(Agent, ChildStatus);
+}
+
 EBehaviacStatus UBehaviacDecoratorTask::OnUpdate(UBehaviacAgentComponent* Agent, EBehaviacStatus ChildStatus)
 {
 	if (!ChildTask)
@@ -374,13 +381,15 @@ EBehaviacStatus UBehaviacDecoratorTimeTask::OnUpdate(UBehaviacAgentComponent* Ag
 	float Duration = TimeNode ? TimeNode->TimeDuration : 1.0f;
 
 	double CurrentTime = Agent ? Agent->GetWorld()->GetTimeSeconds() : FPlatformTime::Seconds();
+
+	// Time expired: stop ticking child and succeed
 	if ((CurrentTime - StartTime) >= Duration)
 	{
 		return EBehaviacStatus::Success;
 	}
 
-	EBehaviacStatus Result = ChildTask->Execute(Agent, ChildStatus);
-	return (Result == EBehaviacStatus::Running) ? EBehaviacStatus::Running : EBehaviacStatus::Running;
+	// Still within time window: keep ticking child, propagate its result
+	return ChildTask->Execute(Agent, ChildStatus);
 }
 
 // ===================================================================

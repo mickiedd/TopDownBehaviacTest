@@ -185,7 +185,26 @@ static UBehaviacBehaviorNode* ParseNodeFromXML(const FXmlNode* XmlNode, UObject*
 
 bool UBehaviacBehaviorTree::LoadFromXML(const FString& XMLContent)
 {
-	FXmlFile XmlFile(XMLContent, EConstructMethod::ConstructFromBuffer);
+	// FXmlFile's ConstructFromBuffer splits on newlines before stripping <?xml?>.
+	// If the entire XML is on one line, the prolog removal blanks the whole string.
+	// Fix: strip the XML declaration ourselves and add a newline after every '>'.
+	FString Sanitized = XMLContent;
+	// Remove the <?xml ... ?> prolog (handles both single-line and multi-line)
+	{
+		int32 PrologStart = Sanitized.Find(TEXT("<?xml"), ESearchCase::IgnoreCase);
+		if (PrologStart != INDEX_NONE)
+		{
+			int32 PrologEnd = Sanitized.Find(TEXT("?>"), ESearchCase::CaseSensitive, ESearchDir::FromStart, PrologStart);
+			if (PrologEnd != INDEX_NONE)
+			{
+				Sanitized.RemoveAt(PrologStart, (PrologEnd + 2) - PrologStart);
+			}
+		}
+	}
+	// Ensure each tag ends with a newline so FXmlFile can parse line-by-line
+	Sanitized = Sanitized.Replace(TEXT(">"), TEXT(">\n"));
+
+	FXmlFile XmlFile(Sanitized, EConstructMethod::ConstructFromBuffer);
 
 	if (!XmlFile.IsValid())
 	{

@@ -18,6 +18,9 @@ Saved/
 # Visual Studio
 .vs/
 
+/.vscode
+/Intermediate
+
 # OS
 .DS_Store
 Thumbs.db

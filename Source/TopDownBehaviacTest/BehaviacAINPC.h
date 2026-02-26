@@ -76,4 +76,8 @@ private:
 	// Patrol points
 	TArray<FVector> PatrolPoints;
 	int32 CurrentPatrolIndex;
+
+	// Per-instance tick counter (avoids static-local counter persisting across PIE sessions)
+	int32 TickCounter;
+	float DebugTimer;
 };

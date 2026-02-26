@@ -28,12 +28,6 @@ EBehaviacStatus UBehaviacBehaviorTask::Execute(UBehaviacAgentComponent* Agent, E
 {
 	if (!Node || !Node->IsValid(Agent, this))
 	{
-		static int32 DebugCount = 0;
-		if (DebugCount++ < 3)
-		{
-			UE_LOG(LogTemp, Warning, TEXT("[Behaviac] ⚠️ Task::Execute: Node=%d, IsValid=%d"), 
-				Node != nullptr, Node ? Node->IsValid(Agent, this) : false);
-		}
 		return EBehaviacStatus::Failure;
 	}
 
@@ -54,13 +48,6 @@ EBehaviacStatus UBehaviacBehaviorTask::Execute(UBehaviacAgentComponent* Agent, E
 		{
 			bHasEntered = false;
 			return EBehaviacStatus::Failure;
-		}
-		
-		static int32 DebugEnterCount = 0;
-		if (DebugEnterCount++ < 5)
-		{
-			UE_LOG(LogTemp, Warning, TEXT("[Behaviac] 🚪 Task::Execute: Entered task for node '%s'"), 
-				Node ? *Node->GetName() : TEXT("NULL"));
 		}
 	}
 
@@ -345,14 +332,6 @@ void UBehaviacBehaviorTreeTask::Init(UBehaviacBehaviorNode* InNode)
 
 EBehaviacStatus UBehaviacBehaviorTreeTask::Tick(UBehaviacAgentComponent* Agent)
 {
-	static int32 DebugTickCount = 0;
-	if (DebugTickCount < 5)
-	{
-		DebugTickCount++;
-		UE_LOG(LogTemp, Warning, TEXT("[Behaviac] 🌳 BehaviorTreeTask::Tick() called (tick #%d), ChildTask=%d"), 
-			DebugTickCount, ChildTask != nullptr);
-	}
-
 	return Execute(Agent, EBehaviacStatus::Running);
 }
 

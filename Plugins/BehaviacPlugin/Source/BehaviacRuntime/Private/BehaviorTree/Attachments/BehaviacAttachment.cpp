@@ -59,6 +59,35 @@ UBehaviacPrecondition::UBehaviacPrecondition()
 {
 }
 
+void UBehaviacPrecondition::LoadFromProperties(int32 Version, const FString& AgentType, const TArray<FBehaviacProperty>& Properties)
+{
+	// Load base attachment properties (Phase, Negate)
+	Super::LoadFromProperties(Version, AgentType, Properties);
+
+	Operator = EBehaviacOperatorType::Equal;
+
+	for (const FBehaviacProperty& Prop : Properties)
+	{
+		if (Prop.Name == TEXT("Opl"))
+		{
+			LeftOperand = Prop.Value;
+		}
+		else if (Prop.Name == TEXT("Opr"))
+		{
+			RightOperand = Prop.Value;
+		}
+		else if (Prop.Name == TEXT("Operator"))
+		{
+			if (Prop.Value == TEXT("Equal"))				Operator = EBehaviacOperatorType::Equal;
+			else if (Prop.Value == TEXT("NotEqual"))		Operator = EBehaviacOperatorType::NotEqual;
+			else if (Prop.Value == TEXT("Greater"))		Operator = EBehaviacOperatorType::Greater;
+			else if (Prop.Value == TEXT("Less"))			Operator = EBehaviacOperatorType::Less;
+			else if (Prop.Value == TEXT("GreaterEqual"))	Operator = EBehaviacOperatorType::GreaterEqual;
+			else if (Prop.Value == TEXT("LessEqual"))		Operator = EBehaviacOperatorType::LessEqual;
+		}
+	}
+}
+
 bool UBehaviacPrecondition::AppliesToPhase(EBehaviacPreconditionPhase Phase) const
 {
 	return PreconditionPhase == EBehaviacPreconditionPhase::Both || PreconditionPhase == Phase;

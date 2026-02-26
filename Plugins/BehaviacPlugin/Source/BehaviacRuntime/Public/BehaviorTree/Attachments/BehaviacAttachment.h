@@ -46,7 +46,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Behaviac|Attachment")
 	EBehaviacActionResult ActionResult;
 
-protected:
 	/** Whether to negate the condition result */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Behaviac|Attachment")
 	bool bNegate;
@@ -63,6 +62,7 @@ class BEHAVIACRUNTIME_API UBehaviacPrecondition : public UBehaviacAttachment
 public:
 	UBehaviacPrecondition();
 
+	virtual void LoadFromProperties(int32 Version, const FString& AgentType, const TArray<FBehaviacProperty>& Properties) override;
 	virtual bool AppliesToPhase(EBehaviacPreconditionPhase Phase) const override;
 	virtual bool Evaluate(UBehaviacAgentComponent* Agent) const override;
 

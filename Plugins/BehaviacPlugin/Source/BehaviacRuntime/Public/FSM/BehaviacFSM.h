@@ -136,6 +136,46 @@ protected:
 	virtual bool OnEnter(UBehaviacAgentComponent* Agent) override;
 	virtual void OnExit(UBehaviacAgentComponent* Agent, EBehaviacStatus InStatus) override;
 	virtual EBehaviacStatus OnUpdate(UBehaviacAgentComponent* Agent, EBehaviacStatus ChildStatus) override;
+	/** Routes through OnUpdate even when there is no child node. */
+	virtual EBehaviacStatus UpdateCurrent(UBehaviacAgentComponent* Agent, EBehaviacStatus ChildStatus) override;
+};
+
+/**
+ * Task for WaitFramesState: returns Running for N frames, then succeeds.
+ */
+UCLASS()
+class BEHAVIACRUNTIME_API UBehaviacWaitFramesStateTask : public UBehaviacFSMStateTask
+{
+	GENERATED_BODY()
+public:
+	UBehaviacWaitFramesStateTask();
+
+protected:
+	virtual bool OnEnter(UBehaviacAgentComponent* Agent) override;
+	virtual EBehaviacStatus OnUpdate(UBehaviacAgentComponent* Agent, EBehaviacStatus ChildStatus) override;
+
+private:
+	int32 StartFrame;
+	int32 TargetFrames;
+};
+
+/**
+ * Task for WaitState: returns Running for a duration, then succeeds.
+ */
+UCLASS()
+class BEHAVIACRUNTIME_API UBehaviacWaitStateTask : public UBehaviacFSMStateTask
+{
+	GENERATED_BODY()
+public:
+	UBehaviacWaitStateTask();
+
+protected:
+	virtual bool OnEnter(UBehaviacAgentComponent* Agent) override;
+	virtual EBehaviacStatus OnUpdate(UBehaviacAgentComponent* Agent, EBehaviacStatus ChildStatus) override;
+
+private:
+	double StartTime;
+	float WaitDuration;
 };
 
 /**

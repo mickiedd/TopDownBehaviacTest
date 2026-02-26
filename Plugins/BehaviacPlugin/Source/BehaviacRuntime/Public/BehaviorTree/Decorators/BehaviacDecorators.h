@@ -32,6 +32,7 @@ class BEHAVIACRUNTIME_API UBehaviacDecoratorTask : public UBehaviacSingleChildTa
 	GENERATED_BODY()
 protected:
 	virtual EBehaviacStatus OnUpdate(UBehaviacAgentComponent* Agent, EBehaviacStatus ChildStatus) override;
+	virtual EBehaviacStatus UpdateCurrent(UBehaviacAgentComponent* Agent, EBehaviacStatus ChildStatus) override;
 	virtual EBehaviacStatus DecorateResult(EBehaviacStatus ChildResult);
 };
 

@@ -104,15 +104,6 @@ EBehaviacStatus UBehaviacAgentComponent::TickBehaviorTree()
 	}
 
 	EBehaviacStatus Result = CurrentTreeTask->Tick(this);
-
-	// Debug: Log first few ticks
-	static int32 DebugTickCount = 0;
-	if (DebugTickCount < 5)
-	{
-		DebugTickCount++;
-		UE_LOG(LogTemp, Warning, TEXT("[Behaviac] TickBehaviorTree: Task->Tick() returned %d (Success=1, Failure=2, Running=3)"), (int32)Result);
-	}
-
 	return Result;
 }
 

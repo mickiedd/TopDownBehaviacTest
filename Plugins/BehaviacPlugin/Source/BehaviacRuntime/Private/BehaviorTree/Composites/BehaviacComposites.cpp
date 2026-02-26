@@ -2,6 +2,7 @@
 // Licensed under the BSD 3-Clause License.
 
 #include "BehaviorTree/Composites/BehaviacComposites.h"
+#include "BehaviorTree/Decorators/BehaviacDecorators.h"
 #include "BehaviacAgent.h"
 
 // ===================================================================
@@ -393,7 +394,50 @@ UBehaviacBehaviorTask* UBehaviacSelectorProbability::CreateTask(UObject* Outer) 
 
 bool UBehaviacSelectorProbabilityTask::OnEnter(UBehaviacAgentComponent* Agent)
 {
-	return ChildTasks.Num() > 0;
+	if (ChildTasks.Num() == 0) return false;
+
+	// Collect weights from DecoratorWeight children; default weight = 1.0
+	TArray<float> Weights;
+	Weights.Reserve(ChildTasks.Num());
+	float TotalWeight = 0.0f;
+
+	for (int32 i = 0; i < ChildTasks.Num(); i++)
+	{
+		float W = 1.0f;
+		if (Node && Node->GetChild(i))
+		{
+			const UBehaviacDecoratorWeight* WeightNode = Cast<UBehaviacDecoratorWeight>(Node->GetChild(i));
+			if (WeightNode)
+			{
+				W = FMath::Max(0.0f, WeightNode->Weight);
+			}
+		}
+		Weights.Add(W);
+		TotalWeight += W;
+	}
+
+	// Pick weighted random child
+	ActiveChildIndex = 0;
+	if (TotalWeight > 0.0f)
+	{
+		float Pick = FMath::FRandRange(0.0f, TotalWeight);
+		float Cumulative = 0.0f;
+		for (int32 i = 0; i < Weights.Num(); i++)
+		{
+			Cumulative += Weights[i];
+			if (Pick <= Cumulative)
+			{
+				ActiveChildIndex = i;
+				break;
+			}
+		}
+	}
+	else
+	{
+		ActiveChildIndex = FMath::RandRange(0, ChildTasks.Num() - 1);
+	}
+
+	return true;
 }
 
 EBehaviacStatus UBehaviacSelectorProbabilityTask::OnUpdate(UBehaviacAgentComponent* Agent, EBehaviacStatus ChildStatus)
@@ -403,14 +447,13 @@ EBehaviacStatus UBehaviacSelectorProbabilityTask::OnUpdate(UBehaviacAgentCompone
 		return EBehaviacStatus::Failure;
 	}
 
-	// Pick weighted random child (weights from decorator weight nodes)
-	// For simplicity, use uniform random if no weights
-	if (ActiveChildIndex < 0 || ActiveChildIndex >= ChildTasks.Num())
+	// ActiveChildIndex was chosen by weighted random in OnEnter; just execute it
+	if (ChildTasks.IsValidIndex(ActiveChildIndex))
 	{
-		ActiveChildIndex = FMath::RandRange(0, ChildTasks.Num() - 1);
+		return ChildTasks[ActiveChildIndex]->Execute(Agent, ChildStatus);
 	}
 
-	return ChildTasks[ActiveChildIndex]->Execute(Agent, ChildStatus);
+	return EBehaviacStatus::Failure;
 }
 
 // ===================================================================

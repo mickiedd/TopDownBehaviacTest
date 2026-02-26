@@ -14,12 +14,17 @@ ABehaviacAINPC::ABehaviacAINPC()
 
 	// Create Behaviac Agent Component
 	BehaviacAgent = CreateDefaultSubobject<UBehaviacAgentComponent>(TEXT("BehaviacAgent"));
+	// Disable auto-tick: BehaviacAINPC manually calls TickBehaviorTree() in its own Tick()
+	// to have full control over tick ordering. Leaving bAutoTick=true would double-tick every frame.
+	BehaviacAgent->bAutoTick = false;
 
 	// Default properties
 	DetectionRadius = 1000.0f;
 	WalkSpeed = 200.0f;
 	RunSpeed = 400.0f;
 	CurrentPatrolIndex = 0;
+	TickCounter = 0;
+	DebugTimer = 0.0f;
 
 	// Set up AI Controller
 	AIControllerClass = AAIController::StaticClass();
@@ -119,7 +124,6 @@ void ABehaviacAINPC::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 
 	// Debug: Log NPC status every 5 seconds
-	static float DebugTimer = 0.0f;
 	DebugTimer += DeltaTime;
 	if (DebugTimer >= 5.0f)
 	{
@@ -132,10 +136,9 @@ void ABehaviacAINPC::Tick(float DeltaTime)
 		DebugTimer = 0.0f;
 	}
 
-	// Tick the behavior tree - THIS IS CRITICAL!
+	// Tick the behavior tree
 	if (BehaviacAgent)
 	{
-		static int32 TickCounter = 0;
 		TickCounter++;
 		
 		EBehaviacStatus Status = BehaviacAgent->TickBehaviorTree();
