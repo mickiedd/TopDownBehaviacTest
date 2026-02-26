@@ -212,6 +212,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 bool FBehaviacXML_InvalidXML::RunTest(const FString&)
 {
+	AddExpectedError(TEXT("Failed to parse XML content"), EAutomationExpectedErrorFlags::Contains, 1);
+
 	UBehaviacBehaviorTree* Tree = NewObject<UBehaviacBehaviorTree>(GetTransientPackage());
 	bool bOK = Tree->LoadFromXML(TEXT("this is not xml <><><"));
 	TestFalse(TEXT("LoadFromXML with garbage returns false"), bOK);
@@ -225,6 +227,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 bool FBehaviacXML_EmptyBehavior::RunTest(const FString&)
 {
+	AddExpectedError(TEXT("No <node> element found in XML"), EAutomationExpectedErrorFlags::Contains, 1);
+
 	// Valid XML but no nodes
 	const FString XML =
 		TEXT("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"

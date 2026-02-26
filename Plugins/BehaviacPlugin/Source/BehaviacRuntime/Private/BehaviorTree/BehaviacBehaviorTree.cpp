@@ -208,7 +208,7 @@ bool UBehaviacBehaviorTree::LoadFromXML(const FString& XMLContent)
 
 	if (!XmlFile.IsValid())
 	{
-		UE_LOG(LogTemp, Error, TEXT("[Behaviac] Failed to parse XML content"));
+		UE_LOG(LogTemp, Warning, TEXT("[Behaviac] Failed to parse XML content"));
 		return false;
 	}
 
@@ -260,7 +260,7 @@ bool UBehaviacBehaviorTree::LoadFromXML(const FString& XMLContent)
 	}
 	else
 	{
-		UE_LOG(LogTemp, Error, TEXT("[Behaviac] ❌ No <node> element found in XML!"));
+		UE_LOG(LogTemp, Warning, TEXT("[Behaviac] ❌ No <node> element found in XML!"));
 	}
 
 	return RootNode != nullptr;
