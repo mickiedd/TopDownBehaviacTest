@@ -45,7 +45,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Wander")
 	float TurnInterpSpeed = 120.f;
 
+	/** Current mood roll [0,1) set by RollMood each cycle — read by BT Conditions */
+	UPROPERTY(BlueprintReadOnly, Category = "AI|Mood")
+	float MoodRoll = 0.f;
+
 	// ── BT actions ────────────────────────────────────────────────────
+	UFUNCTION(BlueprintCallable, Category = "AI|Actions")
+	EBehaviacStatus RollMood();
+
 	UFUNCTION(BlueprintCallable, Category = "AI|Actions")
 	EBehaviacStatus PickWanderTarget();
 
@@ -57,6 +64,30 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "AI|Actions")
 	EBehaviacStatus LookAround();
+
+	/** Set speed to sleepy shuffle (60% of WanderSpeed) */
+	UFUNCTION(BlueprintCallable, Category = "AI|Actions")
+	EBehaviacStatus SetSleepySpeed();
+
+	/** Reset to normal WanderSpeed */
+	UFUNCTION(BlueprintCallable, Category = "AI|Actions")
+	EBehaviacStatus SetWanderSpeed();
+
+	/** Set speed to excited sprint (2.5x WanderSpeed) */
+	UFUNCTION(BlueprintCallable, Category = "AI|Actions")
+	EBehaviacStatus SetExcitedSpeed();
+
+	/** 40% chance to do a random spin, always returns Success */
+	UFUNCTION(BlueprintCallable, Category = "AI|Actions")
+	EBehaviacStatus MaybeSpin();
+
+	/** Full 360° celebratory spin */
+	UFUNCTION(BlueprintCallable, Category = "AI|Actions")
+	EBehaviacStatus SpinAround();
+
+	/** Launch up with a happy jump */
+	UFUNCTION(BlueprintCallable, Category = "AI|Actions")
+	EBehaviacStatus ExcitedJump();
 
 private:
 	void UpdateBehaviacProperties();

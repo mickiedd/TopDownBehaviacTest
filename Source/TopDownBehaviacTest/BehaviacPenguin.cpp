@@ -33,14 +33,22 @@ void ABehaviacPenguin::BeginPlay()
 	if (BehaviacAgent)
 	{
 		// Register BT method handlers before base loads the tree
+		BehaviacAgent->RegisterMethodHandler(TEXT("RollMood"),          [this]() { return RollMood();          });
 		BehaviacAgent->RegisterMethodHandler(TEXT("PickWanderTarget"),   [this]() { return PickWanderTarget();   });
 		BehaviacAgent->RegisterMethodHandler(TEXT("MoveToWanderTarget"), [this]() { return MoveToWanderTarget(); });
 		BehaviacAgent->RegisterMethodHandler(TEXT("StopMovement"),       [this]() { return StopMovement();       });
 		BehaviacAgent->RegisterMethodHandler(TEXT("LookAround"),         [this]() { return LookAround();         });
+		BehaviacAgent->RegisterMethodHandler(TEXT("SetSleepySpeed"),     [this]() { return SetSleepySpeed();     });
+		BehaviacAgent->RegisterMethodHandler(TEXT("SetWanderSpeed"),     [this]() { return SetWanderSpeed();     });
+		BehaviacAgent->RegisterMethodHandler(TEXT("SetExcitedSpeed"),    [this]() { return SetExcitedSpeed();    });
+		BehaviacAgent->RegisterMethodHandler(TEXT("MaybeSpin"),          [this]() { return MaybeSpin();          });
+		BehaviacAgent->RegisterMethodHandler(TEXT("SpinAround"),         [this]() { return SpinAround();         });
+		BehaviacAgent->RegisterMethodHandler(TEXT("ExcitedJump"),        [this]() { return ExcitedJump();        });
 
 		BehaviacAgent->SetBoolProperty  (TEXT("IsMoving"),     false);
 		BehaviacAgent->SetFloatProperty (TEXT("WanderRadius"), WanderRadius);
 		BehaviacAgent->SetFloatProperty (TEXT("WanderSpeed"),  WanderSpeed);
+		BehaviacAgent->SetFloatProperty (TEXT("MoodRoll"),     0.f);
 	}
 
 	// Base class loads the behavior tree
@@ -181,4 +189,71 @@ EBehaviacStatus ABehaviacPenguin::LookAround()
 	}
 
 	return EBehaviacStatus::Running;
+}
+
+// ── Mood & speed helpers ──────────────────────────────────────────────────────
+
+EBehaviacStatus ABehaviacPenguin::RollMood()
+{
+	MoodRoll = FMath::FRand(); // [0, 1)
+	BehaviacAgent->SetFloatProperty(TEXT("MoodRoll"), MoodRoll);
+
+	const TCHAR* Mood =
+		MoodRoll < 0.35f ? TEXT("😴 Sleepy") :
+		MoodRoll < 0.70f ? TEXT("🐧 Curious") :
+		TEXT("🎉 Excited");
+
+	BEHAVIAC_VLOG(TEXT("[BehaviacPenguin] %s: RollMood → %.2f %s"), *GetName(), MoodRoll, Mood);
+	return EBehaviacStatus::Success;
+}
+
+EBehaviacStatus ABehaviacPenguin::SetSleepySpeed()
+{
+	GetCharacterMovement()->MaxWalkSpeed = WanderSpeed * 0.6f;
+	return EBehaviacStatus::Success;
+}
+
+EBehaviacStatus ABehaviacPenguin::SetWanderSpeed()
+{
+	GetCharacterMovement()->MaxWalkSpeed = WanderSpeed;
+	return EBehaviacStatus::Success;
+}
+
+EBehaviacStatus ABehaviacPenguin::SetExcitedSpeed()
+{
+	GetCharacterMovement()->MaxWalkSpeed = WanderSpeed * 2.5f;
+	return EBehaviacStatus::Success;
+}
+
+// ── Goofy actions ─────────────────────────────────────────────────────────────
+
+EBehaviacStatus ABehaviacPenguin::MaybeSpin()
+{
+	if (FMath::FRand() < 0.4f)
+	{
+		// Instant snap rotation — penguins don't need dignity
+		FRotator Rot = GetActorRotation();
+		Rot.Yaw = FRotator::ClampAxis(Rot.Yaw + FMath::FRandRange(90.f, 270.f));
+		SetActorRotation(Rot);
+		BEHAVIAC_VLOG(TEXT("[BehaviacPenguin] %s: MaybeSpin fired!"), *GetName());
+	}
+	return EBehaviacStatus::Success;
+}
+
+EBehaviacStatus ABehaviacPenguin::SpinAround()
+{
+	// Snap a full 360° in two steps (180° now, LookAround handles smooth turns)
+	FRotator Rot = GetActorRotation();
+	Rot.Yaw = FRotator::ClampAxis(Rot.Yaw + 180.f);
+	SetActorRotation(Rot);
+	BEHAVIAC_VLOG(TEXT("[BehaviacPenguin] %s: SpinAround!"), *GetName());
+	return EBehaviacStatus::Success;
+}
+
+EBehaviacStatus ABehaviacPenguin::ExcitedJump()
+{
+	// LaunchCharacter upward for a happy hop
+	LaunchCharacter(FVector(0.f, 0.f, 420.f), false, true);
+	BEHAVIAC_VLOG(TEXT("[BehaviacPenguin] %s: ExcitedJump! 🐧"), *GetName());
+	return EBehaviacStatus::Success;
 }

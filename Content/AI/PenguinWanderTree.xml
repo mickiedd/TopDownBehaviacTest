@@ -1,72 +1,154 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  PenguinWanderTree.xml
+  PenguinWanderTree.xml  (refactored)
   Behaviac behavior tree for ABehaviacPenguin / BP_Penguin.
 
-  Behavior cycle (loops forever via DecoratorLoop Count=-1):
-    1. PickWanderTarget    — pick a random reachable point near spawn
-    2. MoveToWanderTarget  — walk there (Running until arrived, then Success)
-    3. StopMovement        — halt navigation cleanly
-    4. Wait 1.5 s          — pause at destination before looking around
-    5. LookAround          — smoothly rotate to random yaw (Running until within 2°)
-    6. Wait 3.0 s          — rest period before the next wander
+  Architecture: BT XML owns ALL decisions and sequencing.
+  C++ / BehaviacPenguin only implements leaf actions.
 
-  Import this file into the Unreal Editor Content Browser
-  (drag-and-drop or Import) to create a UBehaviacBehaviorTree asset.
-  Then assign that asset to BP_Penguin → Details → Behaviac AI → Behavior Tree.
+  Mood system (set each cycle by RollMood):
+    MoodRoll float on blackboard, range [0, 1)
+    < 0.35  → Sleepy   (short shuffle, long nap)
+    < 0.70  → Curious  (normal wander, look around twice)
+    else    → Excited  (fast run, spin + jump on arrival)
+
+  Loop forever via DecoratorLoop Count=-1.
 -->
 <behavior version="1" agenttype="ABehaviacPenguin">
 
-    <!--
-      DecoratorLoop (Count=-1): wraps the whole sequence so the penguin
-      keeps wandering indefinitely.  The Sequence child is reset after
-      each completed cycle.
-    -->
-    <node class="DecoratorLoop">
-        <property name="Count" value="-1"/>
+  <!-- Outer loop: repeat forever -->
+  <node class="DecoratorLoop" id="1">
+    <property name="Count" value="-1"/>
 
-        <!--
-          Sequence: executes children left-to-right in order.
-          Fails immediately if any child fails; succeeds when all succeed.
-        -->
-        <node class="Sequence">
+    <node class="Sequence" id="2">
 
-            <!-- Step 1: choose a new random destination -->
-            <node class="Action">
-                <property name="Method" value="PickWanderTarget"/>
+      <!-- 1. Roll a new mood for this cycle -->
+      <node class="Action" id="3">
+        <property name="Method" value="RollMood"/>
+      </node>
+
+      <!-- 2. Pick a wander target (all moods need a destination) -->
+      <node class="Action" id="4">
+        <property name="Method" value="PickWanderTarget"/>
+      </node>
+
+      <!--
+        3. Mood selector — tries branches top-to-bottom.
+           Each branch is guarded by a Condition on MoodRoll.
+      -->
+      <node class="Selector" id="5">
+
+        <!-- ── SLEEPY branch (MoodRoll < 0.35) ─────────────────── -->
+        <node class="Sequence" id="10">
+          <node class="Condition" id="11">
+            <property name="Opl" value="MoodRoll"/>
+            <property name="Operator" value="Less"/>
+            <property name="Opr" value="0.35"/>
+          </node>
+          <!-- Shuffle slowly to target -->
+          <node class="Action" id="12">
+            <property name="Method" value="SetSleepySpeed"/>
+          </node>
+          <node class="Action" id="13">
+            <property name="Method" value="MoveToWanderTarget"/>
+          </node>
+          <node class="Action" id="14">
+            <property name="Method" value="StopMovement"/>
+          </node>
+          <!-- Drowsy look-around, slow -->
+          <node class="Action" id="15">
+            <property name="Method" value="LookAround"/>
+          </node>
+          <!-- Long nap -->
+          <node class="Wait" id="16">
+            <property name="Time" value="5.0"/>
+          </node>
+          <!-- Occasionally do a half-asleep random spin before waking -->
+          <node class="DecoratorAlwaysSuccess" id="17">
+            <node class="Action" id="18">
+              <property name="Method" value="MaybeSpin"/>
             </node>
-
-            <!-- Step 2: navigate to the destination -->
-            <!-- Returns Running each tick until arrived, then Success -->
-            <node class="Action">
-                <property name="Method" value="MoveToWanderTarget"/>
-            </node>
-
-            <!-- Step 3: stop navigation cleanly -->
-            <node class="Action">
-                <property name="Method" value="StopMovement"/>
-            </node>
-
-            <!-- Step 4: short pause at the destination (1.5 s) -->
-            <node class="Wait">
-                <property name="Time" value="1.5"/>
-            </node>
-
-            <!-- Step 5: look around curiously (smooth yaw interpolation via TurnInterpSpeed) -->
-            <!-- Returns Running until the turn is within 2°, then Success -->
-            <node class="Action">
-                <property name="Method" value="LookAround"/>
-            </node>
-
-            <!-- Step 6: rest for 3 s before the next wander -->
-            <node class="Wait">
-                <property name="Time" value="3.0"/>
-            </node>
-
+          </node>
         </node>
-        <!-- end Sequence -->
+        <!-- end Sleepy -->
+
+        <!-- ── CURIOUS branch (MoodRoll < 0.70) ────────────────── -->
+        <node class="Sequence" id="20">
+          <node class="Condition" id="21">
+            <property name="Opl" value="MoodRoll"/>
+            <property name="Operator" value="Less"/>
+            <property name="Opr" value="0.70"/>
+          </node>
+          <!-- Normal walk speed -->
+          <node class="Action" id="22">
+            <property name="Method" value="SetWanderSpeed"/>
+          </node>
+          <node class="Action" id="23">
+            <property name="Method" value="MoveToWanderTarget"/>
+          </node>
+          <node class="Action" id="24">
+            <property name="Method" value="StopMovement"/>
+          </node>
+          <!-- Short pause -->
+          <node class="Wait" id="25">
+            <property name="Time" value="1.0"/>
+          </node>
+          <!-- Look around once -->
+          <node class="Action" id="26">
+            <property name="Method" value="LookAround"/>
+          </node>
+          <!-- Look around a second time (curious!) -->
+          <node class="Action" id="27">
+            <property name="Method" value="LookAround"/>
+          </node>
+          <!-- Rest before next cycle -->
+          <node class="Wait" id="28">
+            <property name="Time" value="2.0"/>
+          </node>
+        </node>
+        <!-- end Curious -->
+
+        <!-- ── EXCITED branch (MoodRoll >= 0.70) ───────────────── -->
+        <node class="Sequence" id="30">
+          <!-- No condition needed — Selector fallthrough guarantees MoodRoll >= 0.70 -->
+          <!-- Sprint! -->
+          <node class="Action" id="31">
+            <property name="Method" value="SetExcitedSpeed"/>
+          </node>
+          <node class="Action" id="32">
+            <property name="Method" value="MoveToWanderTarget"/>
+          </node>
+          <node class="Action" id="33">
+            <property name="Method" value="StopMovement"/>
+          </node>
+          <!-- Celebratory spin on arrival -->
+          <node class="Action" id="34">
+            <property name="Method" value="SpinAround"/>
+          </node>
+          <!-- Excited jump -->
+          <node class="Action" id="35">
+            <property name="Method" value="ExcitedJump"/>
+          </node>
+          <!-- Brief panting rest -->
+          <node class="Wait" id="36">
+            <property name="Time" value="1.5"/>
+          </node>
+          <!-- Maybe one more spin because why not -->
+          <node class="DecoratorAlwaysSuccess" id="37">
+            <node class="Action" id="38">
+              <property name="Method" value="MaybeSpin"/>
+            </node>
+          </node>
+        </node>
+        <!-- end Excited -->
+
+      </node>
+      <!-- end Selector -->
 
     </node>
-    <!-- end DecoratorLoop -->
+    <!-- end outer Sequence -->
+
+  </node>
+  <!-- end DecoratorLoop -->
 
 </behavior>
