@@ -14,12 +14,10 @@ ABehaviacAINPC::ABehaviacAINPC() : Super()
 
 	// Create Behaviac Agent Component
 	BehaviacAgent = CreateDefaultSubobject<UBehaviacAgentComponent>(TEXT("BehaviacAgent"));
-	// Disable auto-tick: BehaviacAINPC manually calls TickBehaviorTree() in its own Tick()
-	// to have full control over tick ordering. Leaving bAutoTick=true would double-tick every frame.
 	BehaviacAgent->bAutoTick = false;
 
-	// Create Puerts JS bridge component
 	PuertsNPC = CreateDefaultSubobject<UPuertsNPCComponent>(TEXT("PuertsNPC"));
+	JSAI      = CreateDefaultSubobject<UJSAIInterface>(TEXT("JSAI"));
 
 	// Default properties
 	DetectionRadius = 1000.0f;
@@ -57,13 +55,16 @@ void ABehaviacAINPC::BeginPlay()
 	// Record guard ground center at spawn location
 	GuardCenter = GetActorLocation();
 
-	// Initialize patrol points (you can set these in Blueprint or level)
+	// Initialize patrol points
 	FVector StartLocation = GetActorLocation();
 	PatrolPoints.Add(StartLocation + FVector(500, 0, 0));
 	PatrolPoints.Add(StartLocation + FVector(500, 500, 0));
 	PatrolPoints.Add(StartLocation + FVector(0, 500, 0));
 	PatrolPoints.Add(StartLocation);
-	
+
+	// Forward patrol points to JSAI
+	if (JSAI) JSAI->SetPatrolPoints(PatrolPoints);
+
 	UE_LOG(LogTemp, Warning, TEXT("🎯 BehaviacAINPC [%s]: Patrol points set, starting at: %s"), *GetName(), *StartLocation.ToString());
 
 	// Register methods with Behaviac BEFORE loading the tree
@@ -194,6 +195,7 @@ EBehaviacStatus ABehaviacAINPC::FindPlayer()
 		if (!PlayerPawn)
 		{
 			TargetPlayer = nullptr;
+			if (JSAI) JSAI->TargetActor = nullptr;
 			if (BehaviacAgent)
 			{
 				BehaviacAgent->SetPropertyValue(TEXT("HasTarget"), TEXT("false"));
@@ -206,6 +208,7 @@ EBehaviacStatus ABehaviacAINPC::FindPlayer()
 		if (Distance <= DetectionRadius)
 		{
 			TargetPlayer = PlayerPawn;
+			if (JSAI) JSAI->TargetActor = PlayerPawn;
 			if (BehaviacAgent)
 			{
 				BehaviacAgent->SetPropertyValue(TEXT("HasTarget"), TEXT("true"));
@@ -216,6 +219,7 @@ EBehaviacStatus ABehaviacAINPC::FindPlayer()
 	
 		// Player exists but out of range
 		TargetPlayer = nullptr;
+		if (JSAI) JSAI->TargetActor = nullptr;
 		if (BehaviacAgent)
 		{
 			BehaviacAgent->SetPropertyValue(TEXT("HasTarget"), TEXT("false"));
@@ -367,147 +371,6 @@ FString ABehaviacAINPC::GetBehaviacProperty(const FString& Key)
 }
 
 // ============================================================
-// JS primitive helpers (avoid FVector across Puerts boundary)
-// ============================================================
-
-float ABehaviacAINPC::GetDistanceToTarget() const
-{
-	if (!TargetPlayer) return -1.f;
-	return FVector::Distance(GetActorLocation(), TargetPlayer->GetActorLocation());
-}
-
-void ABehaviacAINPC::JS_MoveToTarget()
-{
-	if (!TargetPlayer) return;
-	AAIController* AIC = Cast<AAIController>(GetController());
-	if (AIC) AIC->MoveToActor(TargetPlayer, AttackRange * 0.8f);
-}
-
-void ABehaviacAINPC::JS_Patrol()
-{
-	// Advance to next patrol point
-	if (PatrolPoints.Num() == 0) return;
-	AAIController* AIC = Cast<AAIController>(GetController());
-	if (!AIC) return;
-	FVector Target = PatrolPoints[CurrentPatrolIndex % PatrolPoints.Num()];
-	float Dist = FVector::Distance(GetActorLocation(), Target);
-	if (Dist < 100.f)
-	{
-		CurrentPatrolIndex = (CurrentPatrolIndex + 1) % PatrolPoints.Num();
-		Target = PatrolPoints[CurrentPatrolIndex];
-	}
-	AIC->MoveToLocation(Target, 80.f);
-}
-
-void ABehaviacAINPC::JS_StopMovement()
-{
-	AAIController* AIC = Cast<AAIController>(GetController());
-	if (AIC) AIC->StopMovement();
-}
-
-void ABehaviacAINPC::JS_LookAround()
-{
-	FRotator Current = GetActorRotation();
-	Current.Yaw += 45.0f * LookAroundDir;
-	LookAroundDir = -LookAroundDir;
-	SetActorRotation(Current);
-}
-
-bool ABehaviacAINPC::JS_CanSeePlayer() const
-{
-	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
-	if (!PlayerPawn) return false;
-	float Dist = FVector::Distance(GetActorLocation(), PlayerPawn->GetActorLocation());
-	if (Dist > DetectionRadius) return false;
-	FVector EyeLocation = GetActorLocation() + FVector(0, 0, 60.f);
-	FVector PlayerCenter = PlayerPawn->GetActorLocation() + FVector(0, 0, 60.f);
-	FHitResult HitResult;
-	FCollisionQueryParams Params;
-	Params.AddIgnoredActor(this);
-	Params.AddIgnoredActor(PlayerPawn);
-	bool bBlocked = GetWorld()->LineTraceSingleByChannel(HitResult, EyeLocation, PlayerCenter, ECC_Visibility, Params);
-	return !bBlocked;
-}
-
-float ABehaviacAINPC::JS_GetDistanceFromPost() const
-{
-	return FVector::Distance(GetActorLocation(), GuardCenter);
-}
-
-float ABehaviacAINPC::JS_GetPlayerDistanceFromPost() const
-{
-	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
-	if (!PlayerPawn) return -1.f;
-	return FVector::Distance(PlayerPawn->GetActorLocation(), GuardCenter);
-}
-
-float ABehaviacAINPC::JS_GetDistanceToPlayer() const
-{
-	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
-	if (!PlayerPawn) return -1.f;
-	return FVector::Distance(GetActorLocation(), PlayerPawn->GetActorLocation());
-}
-
-void ABehaviacAINPC::JS_SetSpeed(float Speed)
-{
-	GetCharacterMovement()->MaxWalkSpeed = Speed;
-}
-
-void ABehaviacAINPC::JS_SetAIState(const FString& NewState)
-{
-	if (!BehaviacAgent) return;
-	FString OldState = BehaviacAgent->GetPropertyValue(TEXT("AIState"));
-	if (OldState != NewState)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[JS] AIState: %s → %s"), *OldState, *NewState);
-		BehaviacAgent->SetPropertyValue(TEXT("AIState"), NewState);
-	}
-}
-
-void ABehaviacAINPC::JS_SetLastKnownPos()
-{
-	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
-	if (!PlayerPawn) return;
-	TargetPlayer = PlayerPawn;
-	bHasLastKnownPos = true;
-	LastKnownPlayerPos = PlayerPawn->GetActorLocation();
-}
-
-void ABehaviacAINPC::JS_ClearLastKnownPos()
-{
-	bHasLastKnownPos = false;
-	LastKnownPlayerPos = FVector::ZeroVector;
-	TargetPlayer = nullptr;
-}
-
-bool ABehaviacAINPC::JS_MoveToLastKnownPos()
-{
-	if (!bHasLastKnownPos) return false;
-	AAIController* AIC = Cast<AAIController>(GetController());
-	if (!AIC) return false;
-	float Dist = FVector::Distance(GetActorLocation(), LastKnownPlayerPos);
-	if (Dist < 100.f) return true; // arrived
-	AIC->MoveToLocation(LastKnownPlayerPos, 80.f);
-	return false;
-}
-
-void ABehaviacAINPC::JS_FaceTarget()
-{
-	if (!TargetPlayer) return;
-	FVector Dir = (TargetPlayer->GetActorLocation() - GetActorLocation()).GetSafeNormal();
-	FRotator LookAt = Dir.Rotation();
-	LookAt.Pitch = 0.f;
-	LookAt.Roll = 0.f;
-	SetActorRotation(LookAt);
-}
-
-void ABehaviacAINPC::JS_MoveToPost()
-{
-	AAIController* AIC = Cast<AAIController>(GetController());
-	if (AIC) AIC->MoveToLocation(GuardCenter, 80.f);
-}
-
-// ============================================================
 // JS dispatch bridge
 // ============================================================
 
@@ -563,6 +426,7 @@ EBehaviacStatus ABehaviacAINPC::UpdateAIState()
 		if (bCanSee && DistToPlayer <= AttackRange)
 		{
 			TargetPlayer = PlayerPawn;
+			if (JSAI) JSAI->TargetActor = PlayerPawn;
 			bHasLastKnownPos = true;
 			LastKnownPlayerPos = PlayerPawn->GetActorLocation();
 			NewState = TEXT("Combat");
@@ -570,6 +434,7 @@ EBehaviacStatus ABehaviacAINPC::UpdateAIState()
 		else if (bCanSee && PlayerDistFromPost <= GuardRadius)
 		{
 			TargetPlayer = PlayerPawn;
+			if (JSAI) JSAI->TargetActor = PlayerPawn;
 			bHasLastKnownPos = true;
 			LastKnownPlayerPos = PlayerPawn->GetActorLocation();
 			NewState = TEXT("Chase");
@@ -578,6 +443,7 @@ EBehaviacStatus ABehaviacAINPC::UpdateAIState()
 		{
 			// Spotted but outside guard ground — don't chase, return to post
 			TargetPlayer = nullptr;
+			if (JSAI) JSAI->TargetActor = nullptr;
 			bHasLastKnownPos = false;
 			LastKnownPlayerPos = FVector::ZeroVector;
 			NewState = TEXT("ReturnToPost");
@@ -590,6 +456,7 @@ EBehaviacStatus ABehaviacAINPC::UpdateAIState()
 			{
 				// Was chasing — clear target and return to post
 				TargetPlayer = nullptr;
+				if (JSAI) JSAI->TargetActor = nullptr;
 				bHasLastKnownPos = false;
 				LastKnownPlayerPos = FVector::ZeroVector;
 				NewState = TEXT("ReturnToPost");
@@ -606,6 +473,7 @@ EBehaviacStatus ABehaviacAINPC::UpdateAIState()
 	{
 		// No player in world
 		TargetPlayer = nullptr;
+		if (JSAI) JSAI->TargetActor = nullptr;
 		bHasLastKnownPos = false;
 		NewState = (DistFromPost > GuardRadius) ? TEXT("ReturnToPost") : TEXT("Patrol");
 	}
@@ -818,6 +686,7 @@ EBehaviacStatus ABehaviacAINPC::ClearLastKnownPos()
 		bHasLastKnownPos = false;
 		LastKnownPlayerPos = FVector::ZeroVector;
 		TargetPlayer = nullptr;
+		if (JSAI) JSAI->TargetActor = nullptr;
 	
 		if (BehaviacAgent)
 		{

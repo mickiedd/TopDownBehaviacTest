@@ -1,6 +1,5 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
-
 #include "PuertsNPCComponent.h"
+#include "JSAIInterface.h"
 
 UPuertsNPCComponent::UPuertsNPCComponent()
 {
@@ -33,6 +32,13 @@ void UPuertsNPCComponent::BeginPlay()
     TArray<TPair<FString, UObject*>> Args;
     Args.Add(TPair<FString, UObject*>(TEXT("self"), Owner));
     Args.Add(TPair<FString, UObject*>(TEXT("btBridge"), this));
+
+    // Pass the JSAIInterface component if present
+    UJSAIInterface* JSAI = Owner->FindComponentByClass<UJSAIInterface>();
+    if (JSAI)
+    {
+        Args.Add(TPair<FString, UObject*>(TEXT("ai"), JSAI));
+    }
 
     JsEnv->Start(ScriptModule, Args);
 }

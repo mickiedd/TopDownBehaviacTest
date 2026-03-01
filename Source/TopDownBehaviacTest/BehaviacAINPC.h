@@ -7,6 +7,7 @@
 #include "TopDownBehaviacTestCharacter.h"
 #include "BehaviacTypes.h" // For EBehaviacStatus
 #include "PuertsNPCComponent.h"
+#include "JSAIInterface.h"
 #include "BehaviacAINPC.generated.h"
 
 class UBehaviacAgentComponent;
@@ -36,6 +37,10 @@ public:
 	// Puerts JS bridge component
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AI|Puerts")
 	UPuertsNPCComponent* PuertsNPC;
+
+	// JS AI primitive interface — reusable by any actor
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AI|Puerts")
+	UJSAIInterface* JSAI;
 
 	// Behavior tree to load on BeginPlay
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Behaviac")
@@ -128,60 +133,6 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "AI|Behaviac")
 	FString GetBehaviacProperty(const FString& Key);
-
-	// Puerts-friendly helpers: return primitives instead of FVector structs
-	UFUNCTION(BlueprintCallable, Category = "AI|JS")
-	float GetLocationX() const { return GetActorLocation().X; }
-	UFUNCTION(BlueprintCallable, Category = "AI|JS")
-	float GetLocationY() const { return GetActorLocation().Y; }
-	UFUNCTION(BlueprintCallable, Category = "AI|JS")
-	float GetLocationZ() const { return GetActorLocation().Z; }
-	UFUNCTION(BlueprintCallable, Category = "AI|JS")
-	float GetSpeedXY() const { const FVector V = GetVelocity(); return FMath::Sqrt(V.X*V.X + V.Y*V.Y); }
-	UFUNCTION(BlueprintCallable, Category = "AI|JS")
-	float GetDistanceToTarget() const;
-	UFUNCTION(BlueprintCallable, Category = "AI|JS")
-	void JS_MoveToTarget();
-	UFUNCTION(BlueprintCallable, Category = "AI|JS")
-	void JS_Patrol();
-	UFUNCTION(BlueprintCallable, Category = "AI|JS")
-	void JS_StopMovement();
-	UFUNCTION(BlueprintCallable, Category = "AI|JS")
-	void JS_LookAround();
-
-	/** Returns true if the NPC has line-of-sight to the player and they are within DetectionRadius. */
-	UFUNCTION(BlueprintCallable, Category = "AI|JS")
-	bool JS_CanSeePlayer() const;
-	/** Distance from current position to guard spawn post. */
-	UFUNCTION(BlueprintCallable, Category = "AI|JS")
-	float JS_GetDistanceFromPost() const;
-	/** Distance from player to guard spawn post (-1 if no player). */
-	UFUNCTION(BlueprintCallable, Category = "AI|JS")
-	float JS_GetPlayerDistanceFromPost() const;
-	/** Distance to player (-1 if no player). */
-	UFUNCTION(BlueprintCallable, Category = "AI|JS")
-	float JS_GetDistanceToPlayer() const;
-	/** Set movement speed directly. */
-	UFUNCTION(BlueprintCallable, Category = "AI|JS")
-	void JS_SetSpeed(float Speed);
-	/** Set the AIState blackboard property and log the transition. */
-	UFUNCTION(BlueprintCallable, Category = "AI|JS")
-	void JS_SetAIState(const FString& NewState);
-	/** Store last known player position in the blackboard. */
-	UFUNCTION(BlueprintCallable, Category = "AI|JS")
-	void JS_SetLastKnownPos();
-	/** Clear last known position and target. */
-	UFUNCTION(BlueprintCallable, Category = "AI|JS")
-	void JS_ClearLastKnownPos();
-	/** Move to last known player position. Returns true if already there. */
-	UFUNCTION(BlueprintCallable, Category = "AI|JS")
-	bool JS_MoveToLastKnownPos();
-	/** Face the current target player. */
-	UFUNCTION(BlueprintCallable, Category = "AI|JS")
-	void JS_FaceTarget();
-	/** Navigate back to guard spawn post. */
-	UFUNCTION(BlueprintCallable, Category = "AI|JS")
-	void JS_MoveToPost();
 
 private:
 	/**
