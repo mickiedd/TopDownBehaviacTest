@@ -1,5 +1,3 @@
-/// <reference path="../Plugins/Puerts/Typing/ue/ue.d.ts" />
-
 // main.ts — Puerts entry point for TopDownBehaviacTest
 // Compiled output goes to Content/JavaScript/main.js
 // Executed by APuertsBootstrapActor on BeginPlay.

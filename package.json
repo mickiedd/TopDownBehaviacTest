@@ -1,0 +1,26 @@
+{
+  "name": "topdownbehaviactest",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc -p TypeScript/tsconfig.json",
+    "watch": "tsc -p TypeScript/tsconfig.json --watch"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mickiedd/TopDownBehaviacTest.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/mickiedd/TopDownBehaviacTest/issues"
+  },
+  "homepage": "https://github.com/mickiedd/TopDownBehaviacTest#readme",
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

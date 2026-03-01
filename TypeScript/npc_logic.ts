@@ -1,51 +1,137 @@
-// npc_logic.ts
+// npc_logic.ts — Full NPC behavior logic
+// Compiled to Content/JavaScript/npc_logic.js by tsc.
+//
+// Argv injected by UPuertsNPCComponent:
+//   npcSelf     → ABehaviacAINPC (actor identity)
+//   btBridge → UPuertsNPCComponent (BT dispatch delegate + SetBTResult)
+//   ai       → UJSAIInterface (all movement/sensor/state primitives)
 
-declare const puerts: any;
-declare function setInterval(fn: () => void, ms: number): any;
 
-const self: any = puerts.argv.getByName("self");
+const npcSelf: any = puerts.argv.getByName("npcSelf");
+const btBridge: any = puerts.argv.getByName("btBridge");
+const ai: any       = puerts.argv.getByName("ai");
 
-if (!self) {
-    console.error("[npc_logic] ERROR: 'self' not found in argv");
+if (!npcSelf || !btBridge || !ai) {
+    console.error(`[npc_logic] ERROR: missing argv — npcSelf:${!!npcSelf} btBridge:${!!btBridge} ai:${!!ai}`);
 } else {
-    const name: string = String(self.GetName());
-    console.log(`[npc_logic] ✅ Script loaded for NPC: ${name}`);
-    console.log(`[npc_logic] 📋 Config — DetectionRadius: ${self.DetectionRadius}, WalkSpeed: ${self.WalkSpeed}, RunSpeed: ${self.RunSpeed}, GuardRadius: ${self.GuardRadius}`);
+    const name: string = String(npcSelf.GetName());
+    console.log(`[npc_logic] ✅ Loaded for: ${name}`);
+    console.log(`[npc_logic] 📋 DetectionRadius:${ai.DetectionRadius} WalkSpeed:${ai.WalkSpeed} RunSpeed:${ai.RunSpeed} AttackRange:${ai.AttackRange} CombatRange:${ai.CombatRange} GuardRadius:${ai.GuardRadius}`);
 
-    let tickCount = 0;
+    // ── BT result constants ──────────────────────────────────────────────────
+    const Running = 0;
+    const Success = 1;
+    const Failure = 2;
 
-    setInterval(() => {
-        try {
-            tickCount++;
+    // ── Action handlers ──────────────────────────────────────────────────────
+    const handlers: Record<string, () => number> = {
 
-            const aiState: string = String(self.GetBehaviacProperty("AIState"));
+        "UpdateAIState": (): number => {
+            const distFromPost: number = ai.GetDistanceFromPost();
+            const distToPlayer: number = ai.GetDistanceToPlayer();
+            const canSee: boolean      = ai.CanSeePlayer();
+            const currentState: string = String(ai.GetAIState());
 
-            // Primitive helpers avoid FVector struct boundary issues
-            const px = Math.round(self.GetLocationX());
-            const py = Math.round(self.GetLocationY());
-            const pz = Math.round(self.GetLocationZ());
-            const speed = Math.round(self.GetSpeedXY());
+            let newState = "Patrol";
 
-            const target = self.TargetPlayer;
-            const targetStr = target ? String(target.GetName()) : "none";
-
-            console.log(
-                `[npc_logic][${name}] tick#${tickCount} | ` +
-                `State: ${aiState} | ` +
-                `Pos: (${px}, ${py}, ${pz}) | ` +
-                `Speed: ${speed} | ` +
-                `Target: ${targetStr}`
-            );
-
-            if (aiState === "Combat" && tickCount % 5 === 0) {
-                console.log(`[npc_logic][${name}] 🧠 TS override: StopMovement cooldown`);
-                self.StopMovement();
+            if (canSee && distToPlayer <= ai.AttackRange) {
+                newState = "Combat";
+                ai.SetLastKnownPos();
+            } else if (canSee && distToPlayer <= ai.DetectionRadius) {
+                newState = "Chase";
+                ai.SetLastKnownPos();
+            } else if (currentState === "Chase" || currentState === "Combat") {
+                newState = (distFromPost > ai.GuardRadius) ? "ReturnToPost" : "Investigate";
+            } else if (distFromPost > ai.GuardRadius) {
+                newState = "ReturnToPost";
             }
 
-        } catch (e) {
-            console.error(`[npc_logic][${name}] ❌ Tick error: ${e}`);
-        }
-    }, 3000);
+            ai.SetAIState(newState);
+            return Success;
+        },
 
-    console.log(`[npc_logic] ⏱️  Status logger started (every 3s) for ${name}`);
+        "SetWalkSpeed": (): number => { ai.SetSpeed(ai.WalkSpeed); return Success; },
+        "SetRunSpeed":  (): number => { ai.SetSpeed(ai.RunSpeed);  return Success; },
+
+        "FindPlayer": (): number => {
+            if (ai.CanSeePlayer()) { ai.SetLastKnownPos(); return Success; }
+            return Failure;
+        },
+
+        "Patrol": (): number => { ai.Patrol(); return Running; },
+
+        "MoveToTarget": (): number => {
+            const dist: number = ai.GetDistanceToTarget();
+            if (dist < 0) return Failure;
+            if (dist <= ai.AttackRange) return Success;
+            ai.MoveToTarget();
+            return Running;
+        },
+
+        "ChasePlayer": (): number => {
+            if (String(ai.GetAIState()) !== "Chase") { ai.StopMovement(); return Failure; }
+            const dist: number = ai.GetDistanceToTarget();
+            if (dist < 0) return Failure;
+            if (dist <= ai.AttackRange) return Success;
+            ai.MoveToTarget();
+            return Running;
+        },
+
+        "AttackPlayer": (): number => {
+            if (String(ai.GetAIState()) !== "Combat") return Failure;
+            const dist: number = ai.GetDistanceToTarget();
+            if (dist < 0 || dist > ai.CombatRange) return Failure;
+            console.log(`[npc_logic][${name}] ⚔️ HIT! dist=${Math.round(dist)}`);
+            return Success;
+        },
+
+        "FaceTarget":   (): number => { ai.FaceTarget();   return Success; },
+        "StopMovement": (): number => { ai.StopMovement(); return Success; },
+
+        "MoveToLastKnownPos": (): number => ai.MoveToLastKnownPos() ? Success : Running,
+
+        "LookAround": (): number => { ai.LookAround(); return Success; },
+
+        "ClearLastKnownPos": (): number => {
+            ai.ClearLastKnownPos();
+            ai.SetAIState("Patrol");
+            return Success;
+        },
+
+        "ReturnToPost": (): number => {
+            if (ai.GetDistanceFromPost() < 100) { ai.SetAIState("Patrol"); return Success; }
+            ai.SetSpeed(ai.WalkSpeed);
+            ai.MoveToPost();
+            return Running;
+        },
+    };
+
+    // ── Bind to BT dispatch delegate ─────────────────────────────────────────
+    btBridge.OnBTAction.Add((actionName: string) => {
+        const handler = handlers[String(actionName)];
+        if (handler) {
+            try { btBridge.SetBTResult(handler()); }
+            catch (e) {
+                console.error(`[npc_logic][${name}] ❌ ${actionName}: ${e}`);
+                btBridge.SetBTResult(Failure);
+            }
+        }
+        // No handler → SetBTResult not called → sentinel preserved → C++ fallback
+    });
+
+    console.log(`[npc_logic] ✅ Handlers: [${Object.keys(handlers).join(", ")}]`);
+
+    // ── Status logger (every 3s) ─────────────────────────────────────────────
+    let tick = 0;
+    setInterval(() => {
+        try {
+            tick++;
+            const state: string = String(ai.GetAIState());
+            const px    = Math.round(ai.GetLocationX());
+            const py    = Math.round(ai.GetLocationY());
+            const speed = Math.round(ai.GetSpeedXY());
+            const tStr  = ai.TargetActor ? String(ai.TargetActor.GetName()) : "none";
+            console.log(`[npc_logic][${name}] #${tick} | ${state} | (${px},${py}) | spd:${speed} | tgt:${tStr}`);
+        } catch (e) { /* swallow */ }
+    }, 3000);
 }

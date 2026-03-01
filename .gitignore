@@ -50,3 +50,4 @@ Content/StarterContent/
 # Puerts
 Plugins/Puerts/Binaries/
 Plugins/Puerts/Intermediate/
+node_modules/
