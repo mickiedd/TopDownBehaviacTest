@@ -1,0 +1,12 @@
+/Volumes/M2/Works/TopDownBehaviacTest/Binaries/DotNET/UnrealBuildTool/Plugins/CSharpParamDefaultValueMetas/CSharpParamDefaultValueMetas.deps.json
+/Volumes/M2/Works/TopDownBehaviacTest/Binaries/DotNET/UnrealBuildTool/Plugins/CSharpParamDefaultValueMetas/CSharpParamDefaultValueMetas.dll
+/Volumes/M2/Works/TopDownBehaviacTest/Binaries/DotNET/UnrealBuildTool/Plugins/CSharpParamDefaultValueMetas/ref/CSharpParamDefaultValueMetas.dll
+/Volumes/M2/Works/TopDownBehaviacTest/Binaries/DotNET/UnrealBuildTool/Plugins/CSharpParamDefaultValueMetas/CSharpParamDefaultValueMetas.pdb
+/Volumes/M2/Works/TopDownBehaviacTest/Plugins/Puerts/Source/CSharpParamDefaultValueMetas/obj/Development/CSharpParamDefaultValueMetas.ubtplugin.csproj.AssemblyReference.cache
+/Volumes/M2/Works/TopDownBehaviacTest/Plugins/Puerts/Source/CSharpParamDefaultValueMetas/obj/Development/CSharpParamDefaultValueMetas.ubtplugin.GeneratedMSBuildEditorConfig.editorconfig
+/Volumes/M2/Works/TopDownBehaviacTest/Plugins/Puerts/Source/CSharpParamDefaultValueMetas/obj/Development/CSharpParamDefaultValueMetas.ubtplugin.csproj.CoreCompileInputs.cache
+/Volumes/M2/Works/TopDownBehaviacTest/Plugins/Puerts/Source/CSharpParamDefaultValueMetas/obj/Development/CSharpParamDefaultValueMetas.ubtplugin.sourcelink.json
+/Volumes/M2/Works/TopDownBehaviacTest/Plugins/Puerts/Source/CSharpParamDefaultValueMetas/obj/Development/CSharpPa.E71C88CE.Up2Date
+/Volumes/M2/Works/TopDownBehaviacTest/Plugins/Puerts/Source/CSharpParamDefaultValueMetas/obj/Development/CSharpParamDefaultValueMetas.dll
+/Volumes/M2/Works/TopDownBehaviacTest/Plugins/Puerts/Source/CSharpParamDefaultValueMetas/obj/Development/refint/CSharpParamDefaultValueMetas.dll
+/Volumes/M2/Works/TopDownBehaviacTest/Plugins/Puerts/Source/CSharpParamDefaultValueMetas/obj/Development/CSharpParamDefaultValueMetas.pdb
