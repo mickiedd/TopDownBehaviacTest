@@ -51,11 +51,12 @@ void FBehaviacEditorModule::RegisterMenus()
 	if (ToolbarMenu)
 	{
 		FToolMenuSection& Section = ToolbarMenu->FindOrAddSection("BehaviacEditor");
-		Section.AddEntry(FToolMenuEntry::InitToolBarButton(
+		FToolMenuEntry& Entry = Section.AddEntry(FToolMenuEntry::InitToolBarButton(
 			FBehaviacEditorToolbarCommands::Get().OpenBTEditor,
 			TAttribute<FText>(),
 			TAttribute<FText>(),
 			FSlateIcon(FBehaviacEditorStyle::GetStyleSetName(), "BehaviacEditor.OpenBTEditor")));
+		Entry.SetCommandList(PluginCommands);
 		return;
 	}
 
