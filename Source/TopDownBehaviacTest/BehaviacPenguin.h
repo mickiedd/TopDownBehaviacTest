@@ -54,21 +54,13 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Puerts")
 	UPuertsNPCComponent* PuertsComp;
 
-	// ── Sensor helpers (scalar, safe across Puerts boundary) ─────────
-	UFUNCTION(BlueprintCallable, Category = "AI|Sensor")
-	float GetLocationX() const { return GetActorLocation().X; }
-	UFUNCTION(BlueprintCallable, Category = "AI|Sensor")
-	float GetLocationY() const { return GetActorLocation().Y; }
-	UFUNCTION(BlueprintCallable, Category = "AI|Sensor")
-	float GetSpeedXY() const   { return GetVelocity().Size2D(); }
-	UFUNCTION(BlueprintCallable, Category = "AI|Sensor")
+	// ── Sensor helpers ────────────────────────────────────────────────
+	// (GetLocationX/Y, GetSpeedXY, SetMaxSpeed inherited from BehaviacAnimalBase)
+
+	UFUNCTION(BlueprintCallable, Category = "AI|Mood")
 	float GetMoodRoll() const  { return MoodRoll; }
 	UFUNCTION(BlueprintCallable, Category = "AI|Mood")
 	void  SetMoodRoll(float V) { MoodRoll = V; BehaviacAgent->SetFloatProperty(TEXT("MoodRoll"), V); }
-
-	// ── Movement helpers ──────────────────────────────────────────────
-	UFUNCTION(BlueprintCallable, Category = "AI|Movement")
-	void SetMaxSpeed(float S);
 
 	// ── BT actions — all routed through DispatchOrRun ─────────────────
 	UFUNCTION(BlueprintCallable, Category = "AI|Actions") EBehaviacStatus RollMood();
@@ -91,14 +83,8 @@ private:
 
 	// C++ fallback implementations
 	EBehaviacStatus CPP_RollMood();
-	EBehaviacStatus CPP_PickWanderTarget();
-	EBehaviacStatus CPP_MoveToWanderTarget();
-	EBehaviacStatus CPP_StopMovement();
 	EBehaviacStatus CPP_LookAround();
 
-	FVector SpawnLocation;
-	FVector WanderTarget;
-	bool    bHasWanderTarget   = false;
 	int32   TickCounter        = 0;
 
 	float LookAroundTargetYaw  = 0.f;

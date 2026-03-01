@@ -1,11 +1,8 @@
 // BehaviacPenguin — see BehaviacPenguin.h
 
 #include "BehaviacPenguin.h"
-#include "AIController.h"
-#include "Navigation/PathFollowingComponent.h"
-#include "GameFramework/CharacterMovementComponent.h"
-#include "BehaviacAgent.h"
 #include "BehaviacTypes.h"
+#include "GameFramework/CharacterMovementComponent.h"
 
 // ============================================================
 // Constructor
@@ -25,8 +22,6 @@ ABehaviacPenguin::ABehaviacPenguin()
 
 void ABehaviacPenguin::BeginPlay()
 {
-	SpawnLocation = GetActorLocation();
-
 	if (!BehaviacAgent)
 		BehaviacAgent = FindComponentByClass<UBehaviacAgentComponent>();
 
@@ -50,11 +45,10 @@ void ABehaviacPenguin::BeginPlay()
 		BehaviacAgent->SetFloatProperty (TEXT("MoodRoll"),     0.f);
 	}
 
-	// Base loads the behavior tree
+	// Base class loads the behavior tree
 	Super::BeginPlay();
 
-	BEHAVIAC_VLOG(TEXT("[BehaviacPenguin] %s initialized at %s, WanderRadius=%.0f"),
-		*GetName(), *SpawnLocation.ToString(), WanderRadius);
+	BEHAVIAC_VLOG(TEXT("[BehaviacPenguin] %s initialized, WanderRadius=%.0f"), *GetName(), WanderRadius);
 }
 
 // ============================================================
@@ -69,7 +63,7 @@ void ABehaviacPenguin::Tick(float DeltaTime)
 
 	UpdateBehaviacProperties();
 
-	// Smooth LookAround interpolation (C++ fallback path)
+	// Smooth LookAround interpolation (C++ fallback path only)
 	if (bLookingAround)
 	{
 		FRotator Current = GetActorRotation();
@@ -102,9 +96,9 @@ EBehaviacStatus ABehaviacPenguin::DispatchOrRun(const FString& ActionName, TFunc
 		{
 			switch (Result)
 			{
-				case 0: return EBehaviacStatus::Running;
-				case 1: return EBehaviacStatus::Success;
-				case 2: return EBehaviacStatus::Failure;
+				case 0:  return EBehaviacStatus::Running;
+				case 1:  return EBehaviacStatus::Success;
+				case 2:  return EBehaviacStatus::Failure;
 				default: return EBehaviacStatus::Success;
 			}
 		}
@@ -113,37 +107,78 @@ EBehaviacStatus ABehaviacPenguin::DispatchOrRun(const FString& ActionName, TFunc
 }
 
 // ============================================================
-// BT action stubs — route to JS, C++ fallbacks below
+// BT action stubs — all route through DispatchOrRun
 // ============================================================
 
-EBehaviacStatus ABehaviacPenguin::RollMood()         { return DispatchOrRun(TEXT("RollMood"),          [this]{ return CPP_RollMood();          }); }
-EBehaviacStatus ABehaviacPenguin::PickWanderTarget()  { return DispatchOrRun(TEXT("PickWanderTarget"),   [this]{ return CPP_PickWanderTarget();   }); }
-EBehaviacStatus ABehaviacPenguin::MoveToWanderTarget(){ return DispatchOrRun(TEXT("MoveToWanderTarget"), [this]{ return CPP_MoveToWanderTarget(); }); }
-EBehaviacStatus ABehaviacPenguin::StopMovement()      { return DispatchOrRun(TEXT("StopMovement"),       [this]{ return CPP_StopMovement();       }); }
-EBehaviacStatus ABehaviacPenguin::LookAround()        { return DispatchOrRun(TEXT("LookAround"),         [this]{ return CPP_LookAround();         }); }
+EBehaviacStatus ABehaviacPenguin::RollMood()
+{
+	return DispatchOrRun(TEXT("RollMood"), [this]() { return CPP_RollMood(); });
+}
 
-// Speed setters — pure C++ (no need to JS-ify these; just state changes)
+EBehaviacStatus ABehaviacPenguin::PickWanderTarget()
+{
+	return DispatchOrRun(TEXT("PickWanderTarget"), [this]() -> EBehaviacStatus
+	{
+		// C++ fallback: pick random point, store via base class SetNavTarget
+		float Angle    = FMath::FRandRange(0.f, 2.f * PI);
+		float Distance = FMath::FRandRange(WanderRadius * 0.3f, WanderRadius);
+		FVector Spawn  = GetActorLocation(); // approximate — JS tracks true spawn
+		SetNavTarget(
+			Spawn.X + FMath::Cos(Angle) * Distance,
+			Spawn.Y + FMath::Sin(Angle) * Distance);
+		return EBehaviacStatus::Success;
+	});
+}
+
+EBehaviacStatus ABehaviacPenguin::MoveToWanderTarget()
+{
+	return DispatchOrRun(TEXT("MoveToWanderTarget"), [this]() -> EBehaviacStatus
+	{
+		int32 R = NavMoveToTarget(WanderAcceptanceRadius);
+		if (R == 0) return EBehaviacStatus::Running;
+		if (R == 1) return EBehaviacStatus::Success;
+		return EBehaviacStatus::Failure;
+	});
+}
+
+EBehaviacStatus ABehaviacPenguin::StopMovement()
+{
+	return DispatchOrRun(TEXT("StopMovement"), [this]() -> EBehaviacStatus
+	{
+		NavStop();
+		return EBehaviacStatus::Success;
+	});
+}
+
+EBehaviacStatus ABehaviacPenguin::LookAround()
+{
+	return DispatchOrRun(TEXT("LookAround"), [this]() { return CPP_LookAround(); });
+}
+
 EBehaviacStatus ABehaviacPenguin::SetSleepySpeed()
 {
 	return DispatchOrRun(TEXT("SetSleepySpeed"), [this]() -> EBehaviacStatus {
-		GetCharacterMovement()->MaxWalkSpeed = WanderSpeed * 0.6f;
+		SetMaxSpeed(WanderSpeed * 0.6f);
 		return EBehaviacStatus::Success;
 	});
 }
+
 EBehaviacStatus ABehaviacPenguin::SetWanderSpeed()
 {
 	return DispatchOrRun(TEXT("SetWanderSpeed"), [this]() -> EBehaviacStatus {
-		GetCharacterMovement()->MaxWalkSpeed = WanderSpeed;
+		SetMaxSpeed(WanderSpeed);
 		return EBehaviacStatus::Success;
 	});
 }
+
 EBehaviacStatus ABehaviacPenguin::SetExcitedSpeed()
 {
 	return DispatchOrRun(TEXT("SetExcitedSpeed"), [this]() -> EBehaviacStatus {
-		GetCharacterMovement()->MaxWalkSpeed = WanderSpeed * 2.5f;
+		SetMaxSpeed(WanderSpeed * 2.5f);
 		return EBehaviacStatus::Success;
 	});
 }
+
 EBehaviacStatus ABehaviacPenguin::MaybeSpin()
 {
 	return DispatchOrRun(TEXT("MaybeSpin"), [this]() -> EBehaviacStatus {
@@ -156,6 +191,7 @@ EBehaviacStatus ABehaviacPenguin::MaybeSpin()
 		return EBehaviacStatus::Success;
 	});
 }
+
 EBehaviacStatus ABehaviacPenguin::SpinAround()
 {
 	return DispatchOrRun(TEXT("SpinAround"), [this]() -> EBehaviacStatus {
@@ -165,6 +201,7 @@ EBehaviacStatus ABehaviacPenguin::SpinAround()
 		return EBehaviacStatus::Success;
 	});
 }
+
 EBehaviacStatus ABehaviacPenguin::ExcitedJump()
 {
 	return DispatchOrRun(TEXT("ExcitedJump"), [this]() -> EBehaviacStatus {
@@ -176,11 +213,6 @@ EBehaviacStatus ABehaviacPenguin::ExcitedJump()
 // ============================================================
 // C++ fallback implementations
 // ============================================================
-
-void ABehaviacPenguin::SetMaxSpeed(float S)
-{
-	GetCharacterMovement()->MaxWalkSpeed = S;
-}
 
 void ABehaviacPenguin::UpdateBehaviacProperties()
 {
@@ -195,49 +227,6 @@ EBehaviacStatus ABehaviacPenguin::CPP_RollMood()
 	return EBehaviacStatus::Success;
 }
 
-EBehaviacStatus ABehaviacPenguin::CPP_PickWanderTarget()
-{
-	float Angle    = FMath::FRandRange(0.f, 2.f * PI);
-	float Distance = FMath::FRandRange(WanderRadius * 0.3f, WanderRadius);
-	WanderTarget = SpawnLocation + FVector(
-		FMath::Cos(Angle) * Distance,
-		FMath::Sin(Angle) * Distance,
-		0.f);
-	bHasWanderTarget = true;
-	BEHAVIAC_VLOG(TEXT("[BehaviacPenguin] %s: CPP_PickWanderTarget → %s"), *GetName(), *WanderTarget.ToString());
-	return EBehaviacStatus::Success;
-}
-
-EBehaviacStatus ABehaviacPenguin::CPP_MoveToWanderTarget()
-{
-	if (!bHasWanderTarget) return EBehaviacStatus::Failure;
-
-	AAIController* AIC = GetController<AAIController>();
-	if (!AIC) return EBehaviacStatus::Failure;
-
-	if (FVector::Dist2D(GetActorLocation(), WanderTarget) <= WanderAcceptanceRadius)
-	{
-		AIC->StopMovement();
-		return EBehaviacStatus::Success;
-	}
-
-	GetCharacterMovement()->MaxWalkSpeed = WanderSpeed;
-	EPathFollowingRequestResult::Type Result = AIC->MoveToLocation(
-		WanderTarget, WanderAcceptanceRadius * 0.8f, true, true, true, false);
-
-	if (Result == EPathFollowingRequestResult::AlreadyAtGoal)    return EBehaviacStatus::Success;
-	if (Result == EPathFollowingRequestResult::RequestSuccessful) return EBehaviacStatus::Running;
-	return EBehaviacStatus::Success; // nav fail — skip gracefully
-}
-
-EBehaviacStatus ABehaviacPenguin::CPP_StopMovement()
-{
-	if (AAIController* AIC = GetController<AAIController>())
-		AIC->StopMovement();
-	bHasWanderTarget = false;
-	return EBehaviacStatus::Success;
-}
-
 EBehaviacStatus ABehaviacPenguin::CPP_LookAround()
 {
 	if (bLookAroundComplete)
@@ -247,9 +236,8 @@ EBehaviacStatus ABehaviacPenguin::CPP_LookAround()
 	}
 	if (!bLookingAround)
 	{
-		float CurrentYaw    = GetActorRotation().Yaw;
 		float Delta         = FMath::FRandRange(30.f, 330.f);
-		LookAroundTargetYaw = FRotator::ClampAxis(CurrentYaw + Delta);
+		LookAroundTargetYaw = FRotator::ClampAxis(GetActorRotation().Yaw + Delta);
 		bLookingAround      = true;
 		BEHAVIAC_VLOG(TEXT("[BehaviacPenguin] %s: CPP_LookAround → %.1f°"), *GetName(), LookAroundTargetYaw);
 	}

@@ -3,9 +3,16 @@
 // Rule: TypeScript ONLY implements what a BT leaf node asks for.
 //       All decisions, mood branching, timing, and sequencing live in PenguinWanderTree.xml.
 //
-// Argv injected by UPuertsNPCComponent (ScriptModule = "penguin_logic"):
-//   self     → ABehaviacPenguin (actor)
-//   btBridge → UPuertsNPCComponent (BT dispatch + SetBTResult)
+// Nav API (from ABehaviacAnimalBase — all scalar, safe across Puerts boundary):
+//   self.SetNavTarget(x, y)          — store destination
+//   self.NavMoveToTarget(acceptance) — 0=Running, 1=Success, 2=Failure
+//   self.NavStop()                   — stop + clear target
+//   self.GetNavTargetX/Y()           — read stored target
+//   self.GetLocationX/Y()            — current position
+//   self.GetSpeedXY()                — 2D speed
+//   self.SetMaxSpeed(s)              — set walk speed
+//
+// Argv: self → ABehaviacPenguin, btBridge → UPuertsNPCComponent
 export {};
 
 const self: any     = puerts.argv.getByName("self");
@@ -17,24 +24,21 @@ if (!self || !btBridge) {
     const name: string = String(self.GetName());
     console.log(`[penguin_logic] ✅ Loaded for: ${name}`);
 
-    const Running = 0;
-    const Success = 1;
-    const Failure = 2;
+    const Running    = 0;
+    const Success    = 1;
+    const Failure    = 2;
+    const FALLTHROUGH = -2147483648; // INT32_MIN → DispatchOrRun uses C++ fallback
 
     // ── State ──────────────────────────────────────────────────────────────
-    // LookAround: JS drives the turn duration with a timer.
-    let lookStartTime    = 0;
-    let lookDurationMs   = 0;
-    let lookingAround    = false;
+    // Spawn position cached once (for wander radius math)
+    const spawnX: number = self.GetLocationX() as number;
+    const spawnY: number = self.GetLocationY() as number;
 
-    // ── Helpers ────────────────────────────────────────────────────────────
-    function dist2D(ax: number, ay: number, bx: number, by: number): number {
-        const dx = ax - bx, dy = ay - by;
-        return Math.sqrt(dx * dx + dy * dy);
-    }
+    // LookAround: JS timer-based (avoids C++ bLookAroundComplete state)
+    let lookingAround  = false;
+    let lookEndTime    = 0;
 
-    // Fall-through sentinel: DispatchOrRun sees INT32_MIN and runs C++ fallback instead
-    const FALLTHROUGH = -2147483648;
+    // ── BT handlers ────────────────────────────────────────────────────────
     const handlers: Record<string, () => number> = {
 
         // ── Mood ──────────────────────────────────────────────────────────
@@ -46,37 +50,42 @@ if (!self || !btBridge) {
             return Success;
         },
 
-        // ── Navigation — fall through to C++ for all nav calls ───────────
-        // JS doesn't have access to AIController/pathfinding.
-        // C++ CPP_PickWanderTarget sets bHasWanderTarget; CPP_MoveToWanderTarget
-        // issues MoveToLocation and returns Running until arrived.
+        // ── Navigation (full ownership via base class nav API) ─────────────
         "PickWanderTarget": (): number => {
-            return FALLTHROUGH; // C++ handles target selection + bHasWanderTarget
+            const radius = self.WanderRadius as number;
+            const angle  = Math.random() * 2 * Math.PI;
+            const dist   = radius * (0.3 + Math.random() * 0.7);
+            const tx = spawnX + Math.cos(angle) * dist;
+            const ty = spawnY + Math.sin(angle) * dist;
+            self.SetNavTarget(tx, ty);
+            console.log(`[penguin_logic] ${name} → target (${tx.toFixed(0)}, ${ty.toFixed(0)}) dist=${dist.toFixed(0)}`);
+            return Success;
         },
 
         "MoveToWanderTarget": (): number => {
-            return FALLTHROUGH; // C++ handles AIController.MoveToLocation
+            const acceptance = self.WanderAcceptanceRadius as number;
+            const result = self.NavMoveToTarget(acceptance) as number;
+            // 0=Running, 1=Success, 2=Failure
+            return result;
         },
 
         "StopMovement": (): number => {
-            return FALLTHROUGH; // C++ handles AIController.StopMovement
+            self.NavStop();
+            return Success;
         },
 
-        // ── LookAround: JS timer-based (no bLookAroundComplete state in C++) ──
+        // ── LookAround — JS timer (600–1400ms natural turn feel) ──────────
         "LookAround": (): number => {
             const now = Date.now();
             if (!lookingAround) {
-                // Start: pick a random turn duration (600–1400ms feels natural)
-                lookDurationMs = 600 + Math.random() * 800;
-                lookStartTime  = now;
-                lookingAround  = true;
-                console.log(`[penguin_logic] ${name} LookAround start (${lookDurationMs.toFixed(0)}ms)`);
+                const duration = 600 + Math.random() * 800;
+                lookEndTime   = now + duration;
+                lookingAround = true;
+                console.log(`[penguin_logic] ${name} 👀 LookAround (${duration.toFixed(0)}ms)`);
                 return Running;
             }
-            if (now - lookStartTime < lookDurationMs) return Running;
-            // Done
+            if (now < lookEndTime) return Running;
             lookingAround = false;
-            console.log(`[penguin_logic] ${name} LookAround done`);
             return Success;
         },
 
@@ -96,23 +105,23 @@ if (!self || !btBridge) {
             return Success;
         },
 
-        // ── Goofy actions ─────────────────────────────────────────────────
+        // ── Goofy actions — log in JS, physics in C++ via FALLTHROUGH ─────
         "MaybeSpin": (): number => {
             if (Math.random() < 0.4) {
                 console.log(`[penguin_logic] ${name} 🌀 MaybeSpin!`);
-                return FALLTHROUGH; // fall through → C++ does the rotation snap
+                return FALLTHROUGH; // C++ does the rotation snap
             }
             return Success; // skipped this time
         },
 
         "SpinAround": (): number => {
             console.log(`[penguin_logic] ${name} 🔄 SpinAround!`);
-            return FALLTHROUGH; // fall through → C++ does the rotation
+            return FALLTHROUGH; // C++ does the rotation
         },
 
         "ExcitedJump": (): number => {
             console.log(`[penguin_logic] ${name} 🐧💨 ExcitedJump!`);
-            return FALLTHROUGH; // fall through → C++ does LaunchCharacter
+            return FALLTHROUGH; // C++ does LaunchCharacter
         },
     };
 
@@ -122,17 +131,16 @@ if (!self || !btBridge) {
         if (handler) {
             btBridge.SetBTResult(handler());
         } else {
-            // Unknown action — let C++ fallback handle it
-            btBridge.SetBTResult(FALLTHROUGH);
+            btBridge.SetBTResult(FALLTHROUGH); // unknown — let C++ handle
         }
     });
 
     // ── Heartbeat log (every 5s) ───────────────────────────────────────────
     setInterval(() => {
-        const px = self.GetLocationX() as number;
-        const py = self.GetLocationY() as number;
-        const spd = self.GetSpeedXY() as number;
-        const mood = (self.GetMoodRoll() as number).toFixed(2);
-        console.log(`[penguin_logic] ${name} 🐧 pos:(${px.toFixed(0)},${py.toFixed(0)}) spd:${spd.toFixed(0)} mood:${mood}`);
+        const px   = (self.GetLocationX() as number).toFixed(0);
+        const py   = (self.GetLocationY() as number).toFixed(0);
+        const spd  = (self.GetSpeedXY()   as number).toFixed(0);
+        const mood = (self.GetMoodRoll()  as number).toFixed(2);
+        console.log(`[penguin_logic] ${name} 🐧 pos:(${px},${py}) spd:${spd} mood:${mood}`);
     }, 5000);
 }
