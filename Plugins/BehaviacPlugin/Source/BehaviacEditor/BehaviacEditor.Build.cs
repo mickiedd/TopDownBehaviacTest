@@ -25,6 +25,10 @@ public class BehaviacEditor : ModuleRules
 			"AssetTools",
 			"ContentBrowser",
 			"PropertyEditor",
+			"ToolMenus",
+			"LevelEditor",
+			"InputCore",
+			"Projects",
 		});
 	}
 }

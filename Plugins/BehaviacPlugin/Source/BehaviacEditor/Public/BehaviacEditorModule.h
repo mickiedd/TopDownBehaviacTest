@@ -1,5 +1,4 @@
-// Behaviac UE5 Plugin
-// Licensed under the BSD 3-Clause License.
+// BehaviacEditorModule.h
 
 #pragma once
 
@@ -11,4 +10,10 @@ class FBehaviacEditorModule : public IModuleInterface
 public:
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
+
+private:
+	void RegisterMenus();
+	void OnOpenBTEditor();
+
+	TSharedPtr<class FUICommandList> PluginCommands;
 };
