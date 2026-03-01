@@ -1,5 +1,5 @@
 "use strict";
-// npc_logic.js — compiled from TypeScript/npc_logic.ts
+// npc_logic.js
 
 const self = puerts.argv.getByName("self");
 
@@ -16,52 +16,25 @@ if (!self) {
         try {
             tickCount++;
 
-            // ── AIState (FString UFUNCTION) ──────────────────────────────────
-            let aiState = "Unknown";
-            try {
-                aiState = String(self.GetBehaviacProperty("AIState"));
-            } catch(e) {
-                aiState = "Error:" + e;
-            }
+            const aiState = String(self.GetBehaviacProperty("AIState"));
 
-            // ── Position (FVector UPROPERTY via GetActorLocation UFUNCTION) ──
-            let posStr = "?";
-            try {
-                const pos = self.GetActorLocation();
-                // FVector.X/Y/Z are wrapped — Number() is the safest coercion
-                const px = Math.round(Number(pos.X));
-                const py = Math.round(Number(pos.Y));
-                const pz = Math.round(Number(pos.Z));
-                posStr = `(${px}, ${py}, ${pz})`;
-            } catch(e) {
-                posStr = "Error:" + e;
-            }
+            // Use primitive helpers instead of FVector struct methods
+            const px = Math.round(self.GetLocationX());
+            const py = Math.round(self.GetLocationY());
+            const pz = Math.round(self.GetLocationZ());
+            const speed = Math.round(self.GetSpeedXY());
 
-            // ── Velocity ─────────────────────────────────────────────────────
-            let speed = 0;
-            try {
-                const vel = self.GetVelocity();
-                const vx = Number(vel.X);
-                const vy = Number(vel.Y);
-                speed = Math.round(Math.sqrt(vx * vx + vy * vy));
-            } catch(e) {}
-
-            // ── Target ───────────────────────────────────────────────────────
-            let targetStr = "none";
-            try {
-                const target = self.TargetPlayer;
-                if (target) targetStr = String(target.GetName());
-            } catch(e) {}
+            const target = self.TargetPlayer;
+            const targetStr = target ? String(target.GetName()) : "none";
 
             console.log(
                 `[npc_logic][${name}] tick#${tickCount} | ` +
                 `State: ${aiState} | ` +
-                `Pos: ${posStr} | ` +
+                `Pos: (${px}, ${py}, ${pz}) | ` +
                 `Speed: ${speed} | ` +
                 `Target: ${targetStr}`
             );
 
-            // ── TS override ──────────────────────────────────────────────────
             if (aiState === "Combat" && tickCount % 5 === 0) {
                 console.log(`[npc_logic][${name}] 🧠 TS override: StopMovement cooldown`);
                 self.StopMovement();

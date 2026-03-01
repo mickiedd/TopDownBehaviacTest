@@ -124,6 +124,16 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "AI|Behaviac")
 	FString GetBehaviacProperty(const FString& Key);
 
+	// Puerts-friendly helpers: return primitives instead of FVector structs
+	UFUNCTION(BlueprintCallable, Category = "AI|JS")
+	float GetLocationX() const { return GetActorLocation().X; }
+	UFUNCTION(BlueprintCallable, Category = "AI|JS")
+	float GetLocationY() const { return GetActorLocation().Y; }
+	UFUNCTION(BlueprintCallable, Category = "AI|JS")
+	float GetLocationZ() const { return GetActorLocation().Z; }
+	UFUNCTION(BlueprintCallable, Category = "AI|JS")
+	float GetSpeedXY() const { const FVector V = GetVelocity(); return FMath::Sqrt(V.X*V.X + V.Y*V.Y); }
+
 private:
 	// Patrol points
 	TArray<FVector> PatrolPoints;
