@@ -1,6 +1,5 @@
-// npc_logic.ts — Pure action implementations for BT_PatrolGuard.
-//
-// Rule: TypeScript ONLY implements what a BT leaf node asks for.
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
 //       All decision-making, timing, branching, and sequencing lives in the BT XML.
 //
 // Argv injected by UPuertsNPCComponent:

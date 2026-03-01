@@ -1,13 +1,13 @@
-// BehaviacPenguin — wandering penguin driven by the PenguinWanderTree Behaviac BT.
+// BehaviacPenguin — wandering penguin driven by PenguinWanderTree Behaviac BT.
 //
-// Behavior cycle (PenguinWanderTree.xml):
-//   1. PickWanderTarget  – choose random point near spawn
-//   2. MoveToWanderTarget – walk there (Running until arrived)
-//   3. StopMovement       – halt navigation
-//   4. Wait 1.5 s
-//   5. LookAround         – smooth yaw rotation
-//   6. Wait 3.0 s
-//   Loop forever (DecoratorLoop Count=-1)
+// Architecture:
+//   BT XML owns all decisions, timing, branching.
+//   TypeScript (penguin_logic.ts) implements what BT leaf nodes ask for.
+//   C++ fallbacks fire only when JS is not bound.
+//
+// Argv passed to JS:
+//   self     → ABehaviacPenguin (actor)
+//   btBridge → UPuertsNPCComponent (DispatchBTAction / SetBTResult)
 
 #pragma once
 
@@ -16,6 +16,7 @@
 #include "BehaviacAgent.h"
 #include "BehaviacTypes.h"
 #include "BehaviorTree/BehaviacBehaviorTree.h"
+#include "PuertsNPCComponent.h"
 #include "BehaviacPenguin.generated.h"
 
 UCLASS()
@@ -45,57 +46,60 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Wander")
 	float TurnInterpSpeed = 120.f;
 
-	/** Current mood roll [0,1) set by RollMood each cycle — read by BT Conditions */
+	/** Current mood roll [0,1) — synced to BT blackboard by RollMood() */
 	UPROPERTY(BlueprintReadOnly, Category = "AI|Mood")
 	float MoodRoll = 0.f;
 
-	// ── BT actions ────────────────────────────────────────────────────
-	UFUNCTION(BlueprintCallable, Category = "AI|Actions")
-	EBehaviacStatus RollMood();
+	/** Puerts JS environment — bridges BT actions to TypeScript */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Puerts")
+	UPuertsNPCComponent* PuertsComp;
 
-	UFUNCTION(BlueprintCallable, Category = "AI|Actions")
-	EBehaviacStatus PickWanderTarget();
+	// ── Sensor helpers (scalar, safe across Puerts boundary) ─────────
+	UFUNCTION(BlueprintCallable, Category = "AI|Sensor")
+	float GetLocationX() const { return GetActorLocation().X; }
+	UFUNCTION(BlueprintCallable, Category = "AI|Sensor")
+	float GetLocationY() const { return GetActorLocation().Y; }
+	UFUNCTION(BlueprintCallable, Category = "AI|Sensor")
+	float GetSpeedXY() const   { return GetVelocity().Size2D(); }
+	UFUNCTION(BlueprintCallable, Category = "AI|Sensor")
+	float GetMoodRoll() const  { return MoodRoll; }
+	UFUNCTION(BlueprintCallable, Category = "AI|Mood")
+	void  SetMoodRoll(float V) { MoodRoll = V; BehaviacAgent->SetFloatProperty(TEXT("MoodRoll"), V); }
 
-	UFUNCTION(BlueprintCallable, Category = "AI|Actions")
-	EBehaviacStatus MoveToWanderTarget();
+	// ── Movement helpers ──────────────────────────────────────────────
+	UFUNCTION(BlueprintCallable, Category = "AI|Movement")
+	void SetMaxSpeed(float S);
 
-	UFUNCTION(BlueprintCallable, Category = "AI|Actions")
-	EBehaviacStatus StopMovement();
-
-	UFUNCTION(BlueprintCallable, Category = "AI|Actions")
-	EBehaviacStatus LookAround();
-
-	/** Set speed to sleepy shuffle (60% of WanderSpeed) */
-	UFUNCTION(BlueprintCallable, Category = "AI|Actions")
-	EBehaviacStatus SetSleepySpeed();
-
-	/** Reset to normal WanderSpeed */
-	UFUNCTION(BlueprintCallable, Category = "AI|Actions")
-	EBehaviacStatus SetWanderSpeed();
-
-	/** Set speed to excited sprint (2.5x WanderSpeed) */
-	UFUNCTION(BlueprintCallable, Category = "AI|Actions")
-	EBehaviacStatus SetExcitedSpeed();
-
-	/** 40% chance to do a random spin, always returns Success */
-	UFUNCTION(BlueprintCallable, Category = "AI|Actions")
-	EBehaviacStatus MaybeSpin();
-
-	/** Full 360° celebratory spin */
-	UFUNCTION(BlueprintCallable, Category = "AI|Actions")
-	EBehaviacStatus SpinAround();
-
-	/** Launch up with a happy jump */
-	UFUNCTION(BlueprintCallable, Category = "AI|Actions")
-	EBehaviacStatus ExcitedJump();
+	// ── BT actions — all routed through DispatchOrRun ─────────────────
+	UFUNCTION(BlueprintCallable, Category = "AI|Actions") EBehaviacStatus RollMood();
+	UFUNCTION(BlueprintCallable, Category = "AI|Actions") EBehaviacStatus PickWanderTarget();
+	UFUNCTION(BlueprintCallable, Category = "AI|Actions") EBehaviacStatus MoveToWanderTarget();
+	UFUNCTION(BlueprintCallable, Category = "AI|Actions") EBehaviacStatus StopMovement();
+	UFUNCTION(BlueprintCallable, Category = "AI|Actions") EBehaviacStatus LookAround();
+	UFUNCTION(BlueprintCallable, Category = "AI|Actions") EBehaviacStatus SetSleepySpeed();
+	UFUNCTION(BlueprintCallable, Category = "AI|Actions") EBehaviacStatus SetWanderSpeed();
+	UFUNCTION(BlueprintCallable, Category = "AI|Actions") EBehaviacStatus SetExcitedSpeed();
+	UFUNCTION(BlueprintCallable, Category = "AI|Actions") EBehaviacStatus MaybeSpin();
+	UFUNCTION(BlueprintCallable, Category = "AI|Actions") EBehaviacStatus SpinAround();
+	UFUNCTION(BlueprintCallable, Category = "AI|Actions") EBehaviacStatus ExcitedJump();
 
 private:
+	/** Route BT action to JS if bound; fall back to CppImpl if not. */
+	EBehaviacStatus DispatchOrRun(const FString& ActionName, TFunction<EBehaviacStatus()> CppImpl);
+
 	void UpdateBehaviacProperties();
+
+	// C++ fallback implementations
+	EBehaviacStatus CPP_RollMood();
+	EBehaviacStatus CPP_PickWanderTarget();
+	EBehaviacStatus CPP_MoveToWanderTarget();
+	EBehaviacStatus CPP_StopMovement();
+	EBehaviacStatus CPP_LookAround();
 
 	FVector SpawnLocation;
 	FVector WanderTarget;
-	bool    bHasWanderTarget = false;
-	int32   TickCounter      = 0;
+	bool    bHasWanderTarget   = false;
+	int32   TickCounter        = 0;
 
 	float LookAroundTargetYaw  = 0.f;
 	bool  bLookingAround       = false;
