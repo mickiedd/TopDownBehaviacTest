@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>BehaviorU — Behavior Tree Editor</title>
+<link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ── Toolbar ─────────────────────────────────────── -->
+  <div id="toolbar">
+    <span style="font-weight:700;font-size:13px;color:#fff;margin-right:4px;">🌲 BehaviorU</span>
+    <div class="sep"></div>
+    <input id="tree-name-input" type="text" value="BT_Unnamed" title="Behavior Tree Name"/>
+    <div class="sep"></div>
+    <button class="btn" id="btn-new-tab" title="New Tab">
+      <svg viewBox="0 0 16 16"><path d="M8 2v12M2 8h12"/></svg> New Tree
+    </button>
+    <button class="btn" id="btn-add-root" title="Add Root node">+ Root</button>
+    <button class="btn" id="btn-auto-layout" title="Auto-layout (BFS top-down)">
+      <svg viewBox="0 0 16 16"><path d="M8 1v14M1 8h14"/></svg> Layout
+    </button>
+    <button class="btn" id="btn-fit" title="Fit view (F)">⊡ Fit</button>
+    <div class="sep"></div>
+    <button class="btn" id="btn-undo" title="Undo (Ctrl+Z)">↩ Undo</button>
+    <button class="btn" id="btn-redo" title="Redo (Ctrl+Y)">↪ Redo</button>
+    <div class="sep"></div>
+    <button class="btn primary" id="btn-export" title="Export XML (Ctrl+S)">
+      <svg viewBox="0 0 16 16"><path d="M2 12v2h12v-2M8 2v9M4 8l4 4 4-4"/></svg> Export XML
+    </button>
+    <button class="btn" id="btn-import" title="Import XML">
+      <svg viewBox="0 0 16 16"><path d="M2 12v2h12v-2M8 10V2M4 6l4-4 4 4"/></svg> Import XML
+    </button>
+    <div class="sep"></div>
+    <button class="btn danger" id="btn-clear" title="Clear canvas">✕ Clear</button>
+    <div style="margin-left:auto;font-size:11px;color:var(--text-muted);">
+      Del=delete · Ctrl+Z=undo · Ctrl+A=select all · Ctrl+D=dupe · F=fit · Space+drag=pan
+    </div>
+  </div>
+
+  <!-- ── Tab bar ──────────────────────────────────────── -->
+  <div id="tab-bar">
+    <span id="tab-add" title="New Tree">＋</span>
+  </div>
+
+  <!-- ── Main area ────────────────────────────────────── -->
+  <div id="main-area">
+
+    <!-- Palette -->
+    <div id="palette">
+      <div id="palette-header">Node Palette</div>
+      <input id="palette-search" type="text" placeholder="Search nodes…"/>
+      <div id="palette-list"></div>
+    </div>
+
+    <!-- Canvas -->
+    <div id="canvas-wrap">
+      <canvas id="main-canvas"></canvas>
+      <div id="sel-box"></div>
+      <!-- Minimap -->
+      <div id="minimap"><canvas width="160" height="100"></canvas></div>
+    </div>
+
+    <!-- Properties -->
+    <div id="props-panel">
+      <div id="props-header">Properties</div>
+      <div id="props-content">
+        <div id="props-empty">Select a node to edit its properties.</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Status bar ───────────────────────────────────── -->
+  <div id="statusbar">
+    <span id="sb-nodes">Nodes: 0</span>
+    <span id="sb-edges">Edges: 0</span>
+    <span id="sb-zoom">Zoom: 100%</span>
+    <span style="margin-left:auto;opacity:.6;">BehaviorU Editor · BSD 3-Clause</span>
+  </div>
+
+</div><!-- #app -->
+
+<!-- ── Context menu ─────────────────────────────────────── -->
+<div id="ctx-menu"></div>
+
+<!-- ── Tooltip ──────────────────────────────────────────── -->
+<div id="tooltip"></div>
+
+<!-- ── Export/Import Modal ──────────────────────────────── -->
+<div id="modal-overlay">
+  <div id="modal-box">
+    <h3 id="modal-title">Export XML</h3>
+    <textarea id="modal-xml" spellcheck="false"></textarea>
+    <div class="modal-actions">
+      <button class="btn" id="modal-copy">📋 Copy</button>
+      <button class="btn primary" id="modal-download">⬇ Download .xml</button>
+      <button class="btn primary" id="modal-import-confirm" style="display:none">⬆ Import</button>
+      <button class="btn" id="modal-close">Close</button>
+    </div>
+    <div>
+      <label style="font-size:11px;color:var(--text-muted);">Or load from file: </label>
+      <input type="file" id="modal-file" accept=".xml" style="font-size:11px;color:var(--text-muted);"/>
+    </div>
+  </div>
+</div>
+
+<!-- ── Scripts ──────────────────────────────────────────── -->
+<script src="js/nodes.js"></script>
+<script src="js/undo.js"></script>
+<script src="js/graph.js"></script>
+<script src="js/xml-export.js"></script>
+<script src="js/xml-import.js"></script>
+<script src="js/properties.js"></script>
+<script src="js/app.js"></script>
+
+<script>
+// ── Modal wiring ─────────────────────────────────────────
+(function() {
+  const overlay    = document.getElementById('modal-overlay');
+  const xmlArea    = document.getElementById('modal-xml');
+  const copyBtn    = document.getElementById('modal-copy');
+  const dlBtn      = document.getElementById('modal-download');
+  const importBtn  = document.getElementById('modal-import-confirm');
+  const closeBtn   = document.getElementById('modal-close');
+  const fileInput  = document.getElementById('modal-file');
+  const title      = document.getElementById('modal-title');
+
+  let _isImport = false;
+
+  // override showExportModal / showImportModal
+  const _origExport = window.showExportModal;
+  const _origImport = window.showImportModal;
+
+  window.showExportModal = function() {
+    _isImport = false;
+    xmlArea.value = exportToXML(activeGraph());
+    dlBtn.style.display = '';
+    importBtn.style.display = 'none';
+    copyBtn.style.display = '';
+    title.textContent = 'Export XML';
+    overlay.classList.add('visible');
+  };
+
+  window.showImportModal = function() {
+    _isImport = true;
+    xmlArea.value = '';
+    dlBtn.style.display = 'none';
+    importBtn.style.display = '';
+    copyBtn.style.display = 'none';
+    title.textContent = 'Import XML — paste XML or load a .xml file';
+    overlay.classList.add('visible');
+  };
+
+  copyBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(xmlArea.value).then(() => {
+      copyBtn.textContent = '✅ Copied!';
+      setTimeout(() => copyBtn.textContent = '📋 Copy', 1500);
+    });
+  });
+
+  dlBtn.addEventListener('click', () => {
+    const blob = new Blob([xmlArea.value], { type: 'application/xml' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    a.download = (activeGraph().treeName || 'BehaviorTree') + '.xml';
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  importBtn.addEventListener('click', () => {
+    const xml = xmlArea.value.trim();
+    if (!xml) { alert('Paste XML first.'); return; }
+    const g = activeGraph();
+    importFromXML(xml, g);
+    // sync tree name to tab
+    const tab = _tabs.find(t => t.id === _activeTab);
+    if (tab) { tab.name = g.treeName; }
+    document.getElementById('tree-name-input').value = g.treeName;
+    renderTabs();
+    renderer.fitAll(g.nodes, document.getElementById('canvas-wrap').clientWidth, document.getElementById('canvas-wrap').clientHeight);
+    undoStack.push(snapshot());
+    updateStatus();
+    overlay.classList.remove('visible');
+  });
+
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => { xmlArea.value = e.target.result; };
+    reader.readAsText(file);
+    fileInput.value = '';
+  });
+
+  closeBtn.addEventListener('click', () => overlay.classList.remove('visible'));
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('visible'); });
+})();
+
+// ── Tooltip wiring ───────────────────────────────────────
+(function() {
+  const tip = document.getElementById('tooltip');
+  let _hoveredItem = null;
+
+  document.getElementById('palette-list').addEventListener('mouseover', e => {
+    const item = e.target.closest('.palette-item');
+    if (!item) { tip.classList.remove('visible'); return; }
+    const type = item.dataset.type;
+    const info = NODE_TYPE_MAP[type];
+    if (!info?.tooltip) return;
+    tip.textContent = `${type}\n${info.tooltip}`;
+    tip.classList.add('visible');
+    _hoveredItem = item;
+  });
+  document.getElementById('palette-list').addEventListener('mousemove', e => {
+    tip.style.left = (e.clientX + 16) + 'px';
+    tip.style.top  = (e.clientY +  8) + 'px';
+  });
+  document.getElementById('palette-list').addEventListener('mouseleave', () => {
+    tip.classList.remove('visible');
+    _hoveredItem = null;
+  });
+})();
+</script>
+
+</body>
+</html>

@@ -6,12 +6,21 @@
 #include "ToolMenus.h"
 #include "HAL/PlatformProcess.h"
 #include "LevelEditor.h"
+#include "Interfaces/IPluginManager.h"
 
 #define LOCTEXT_NAMESPACE "FBehaviacEditorModule"
 
-// Path to the BehaviorU static web editor.
-// We open it as a file:// URL — no server needed.
-static const TCHAR* BehaviacEditorPath = TEXT("/Volumes/M2/Works/BehaviorU/Editor/index.html");
+// Path resolved at runtime relative to the plugin's own directory.
+static FString GetBTEditorPath()
+{
+	TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin("BehaviacPlugin");
+	if (!Plugin.IsValid())
+	{
+		UE_LOG(LogTemp, Error, TEXT("[BehaviacEditor] BehaviacPlugin not found via IPluginManager!"));
+		return FString();
+	}
+	return Plugin->GetBaseDir() / TEXT("Editor/index.html");
+}
 
 void FBehaviacEditorModule::StartupModule()
 {
@@ -82,15 +91,17 @@ void FBehaviacEditorModule::RegisterMenus()
 
 void FBehaviacEditorModule::OnOpenBTEditor()
 {
-	UE_LOG(LogTemp, Log, TEXT("[BehaviacEditor] Opening BT editor: %s"), BehaviacEditorPath);
+	FString EditorPath = GetBTEditorPath();
+	if (EditorPath.IsEmpty()) return;
+
+	UE_LOG(LogTemp, Log, TEXT("[BehaviacEditor] Opening BT editor: %s"), *EditorPath);
 
 #if PLATFORM_MAC
-	// Use /usr/bin/open with the file path — most reliable on macOS
-	FPlatformProcess::ExecProcess(TEXT("/usr/bin/open"), BehaviacEditorPath, nullptr, nullptr, nullptr);
+	FPlatformProcess::ExecProcess(TEXT("/usr/bin/open"), *EditorPath, nullptr, nullptr, nullptr);
 #elif PLATFORM_WINDOWS
-	FPlatformProcess::LaunchURL(*FString::Printf(TEXT("file:///%s"), BehaviacEditorPath), nullptr, nullptr);
+	FPlatformProcess::LaunchURL(*FString::Printf(TEXT("file:///%s"), *EditorPath), nullptr, nullptr);
 #else
-	FPlatformProcess::LaunchURL(BehaviacEditorPath, nullptr, nullptr);
+	FPlatformProcess::LaunchURL(*EditorPath, nullptr, nullptr);
 #endif
 }
 
