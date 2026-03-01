@@ -9,9 +9,9 @@
 
 #define LOCTEXT_NAMESPACE "FBehaviacEditorModule"
 
-// URL of the Behaviac behavior tree web editor.
-// Change this if you're running it locally on a different port.
-static const TCHAR* BehaviacEditorURL = TEXT("http://localhost:8080");
+// Path to the BehaviorU static web editor.
+// We open it as a file:// URL — no server needed.
+static const TCHAR* BehaviacEditorPath = TEXT("/Volumes/M2/Works/BehaviorU/Editor/index.html");
 
 void FBehaviacEditorModule::StartupModule()
 {
@@ -81,7 +81,16 @@ void FBehaviacEditorModule::RegisterMenus()
 
 void FBehaviacEditorModule::OnOpenBTEditor()
 {
-	FPlatformProcess::LaunchURL(BehaviacEditorURL, nullptr, nullptr);
+	UE_LOG(LogTemp, Log, TEXT("[BehaviacEditor] Opening BT editor: %s"), BehaviacEditorPath);
+
+#if PLATFORM_MAC
+	// Use /usr/bin/open with the file path — most reliable on macOS
+	FPlatformProcess::ExecProcess(TEXT("/usr/bin/open"), BehaviacEditorPath, nullptr, nullptr, nullptr);
+#elif PLATFORM_WINDOWS
+	FPlatformProcess::LaunchURL(*FString::Printf(TEXT("file:///%s"), BehaviacEditorPath), nullptr, nullptr);
+#else
+	FPlatformProcess::LaunchURL(BehaviacEditorPath, nullptr, nullptr);
+#endif
 }
 
 #undef LOCTEXT_NAMESPACE
