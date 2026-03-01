@@ -148,8 +148,10 @@ void UJSAIInterface::Patrol()
     if (PatrolPoints.Num() == 0) return;
     AAIController* AIC = GetAIC();
     if (!AIC) return;
+
+    // Advance index if already close to current target
     FVector Target = PatrolPoints[CurrentPatrolIndex % PatrolPoints.Num()];
-    if (FVector::Distance(GetOwner()->GetActorLocation(), Target) < 100.f)
+    if (FVector::Distance(GetOwner()->GetActorLocation(), Target) < 150.f)
     {
         CurrentPatrolIndex = (CurrentPatrolIndex + 1) % PatrolPoints.Num();
         Target = PatrolPoints[CurrentPatrolIndex];

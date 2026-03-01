@@ -83,7 +83,7 @@ if (!npcSelf || !btBridge || !ai) {
         "SprintSpeed":  (): number => { ai.SetSpeedRaw(ai.RunSpeed * 1.6); return Success; },
 
         // ── Patrol ───────────────────────────────────────────────────────────
-        "Patrol": (): number => { ai.Patrol(); return Running; },
+        "Patrol": (): number => { ai.Patrol(); return Success; },
 
         "FindPlayer": (): number => {
             if (ai.CanSeePlayer()) { ai.SetLastKnownPos(); return Success; }

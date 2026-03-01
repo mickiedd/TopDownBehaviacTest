@@ -73,7 +73,7 @@ else {
         "SetRunSpeed": () => { ai.SetSpeed(ai.RunSpeed); return Success; },
         "SprintSpeed": () => { ai.SetSpeedRaw(ai.RunSpeed * 1.6); return Success; },
         // ── Patrol ───────────────────────────────────────────────────────────
-        "Patrol": () => { ai.Patrol(); return Running; },
+        "Patrol": () => { ai.Patrol(); return Success; },
         "FindPlayer": () => {
             if (ai.CanSeePlayer()) {
                 ai.SetLastKnownPos();

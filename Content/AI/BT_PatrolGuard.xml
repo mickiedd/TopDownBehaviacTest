@@ -250,10 +250,10 @@
                 </node>
               </node>
             </node>
-            <node class="Action" id="33_inv">
-              <property name="Name" value="ClearLastKnownPos"/>
-              <property name="Method" value="ClearLastKnownPos"/>
-            </node>
+            <node class="Action" id="200">
+                <property name="Name" value="ClearLastKnownPos"/>
+                <property name="Method" value="ClearLastKnownPos"/>
+              </node>
           </node>
         </node>
 
