@@ -48,7 +48,7 @@ bool UBehaviacAgentComponent::LoadBehaviorTree(UBehaviacBehaviorTree* TreeAsset)
 {
 	if (!TreeAsset)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[Behaviac] Cannot load null behavior tree"));
+		UE_LOG(LogBehaviac, Warning, TEXT("[Behaviac] Cannot load null behavior tree"));
 		return false;
 	}
 
@@ -59,24 +59,24 @@ bool UBehaviacAgentComponent::LoadBehaviorTree(UBehaviacBehaviorTree* TreeAsset)
 	UBehaviacBehaviorNode* RootNode = TreeAsset->GetRootNode();
 	if (!RootNode)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[Behaviac] Behavior tree has no root node: %s"), *TreeAsset->GetName());
+		UE_LOG(LogBehaviac, Warning, TEXT("[Behaviac] Behavior tree has no root node: %s"), *TreeAsset->GetName());
 		return false;
 	}
 
 	// Create the root task (BehaviorTreeTask wrapping the root node)
 	CurrentTreeTask = NewObject<UBehaviacBehaviorTreeTask>(this);
 	
-	UE_LOG(LogTemp, Warning, TEXT("[Behaviac] 🔨 Creating tasks: RootNode=%d, NodeType=%s, ChildCount=%d"), 
+	BEHAVIAC_VLOG(TEXT("[Behaviac] Creating tasks: RootNode=%d, NodeType=%s, ChildCount=%d"), 
 		RootNode != nullptr, 
 		RootNode ? *RootNode->GetName() : TEXT("NULL"),
 		RootNode ? RootNode->GetChildCount() : -1);
 	
 	CurrentTreeTask->Init(RootNode);
 	
-	UE_LOG(LogTemp, Warning, TEXT("[Behaviac] 🔨 After Init: CurrentTreeTask->HasChildTask=%d"), 
+	BEHAVIAC_VLOG(TEXT("[Behaviac] After Init: CurrentTreeTask->HasChildTask=%d"), 
 		CurrentTreeTask->HasChildTask());
 
-	UE_LOG(LogTemp, Log, TEXT("[Behaviac] Loaded behavior tree: %s"), *TreeAsset->GetName());
+	UE_LOG(LogBehaviac, Log, TEXT("[Behaviac] Loaded behavior tree: %s"), *TreeAsset->GetName());
 	return true;
 }
 
@@ -91,7 +91,7 @@ bool UBehaviacAgentComponent::LoadBehaviorTreeByPath(const FString& RelativePath
 		return LoadBehaviorTree(TreeAsset);
 	}
 
-	UE_LOG(LogTemp, Warning, TEXT("[Behaviac] Could not find behavior tree at path: %s"), *AssetPath);
+	UE_LOG(LogBehaviac, Warning, TEXT("[Behaviac] Could not find behavior tree at path: %s"), *AssetPath);
 	return false;
 }
 
@@ -99,7 +99,7 @@ EBehaviacStatus UBehaviacAgentComponent::TickBehaviorTree()
 {
 	if (!CurrentTreeTask)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[Behaviac] TickBehaviorTree: CurrentTreeTask is NULL!"));
+		UE_LOG(LogBehaviac, Warning, TEXT("[Behaviac] TickBehaviorTree: CurrentTreeTask is NULL!"));
 		return EBehaviacStatus::Invalid;
 	}
 
@@ -213,22 +213,22 @@ bool UBehaviacAgentComponent::GetBoolProperty(const FString& PropertyName) const
 
 EBehaviacStatus UBehaviacAgentComponent::ExecuteMethod(const FString& MethodName)
 {
-	UE_LOG(LogTemp, Warning, TEXT("[Behaviac] 🔍 ExecuteMethod called for: '%s'"), *MethodName);
+	BEHAVIAC_VLOG(TEXT("[Behaviac] ExecuteMethod called for: '%s'"), *MethodName);
 
 	// First check registered C++ handlers
 	if (TFunction<EBehaviacStatus()>* Handler = MethodHandlers.Find(MethodName))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[Behaviac] ✅ Found C++ handler for '%s', calling it..."), *MethodName);
+		BEHAVIAC_VLOG(TEXT("[Behaviac] Found C++ handler for '%s', calling it..."), *MethodName);
 		return (*Handler)();
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[Behaviac] ❌ No C++ handler found for '%s' (have %d handlers registered)"), *MethodName, MethodHandlers.Num());
+		BEHAVIAC_VLOG(TEXT("[Behaviac] No C++ handler found for '%s' (have %d handlers registered)"), *MethodName, MethodHandlers.Num());
 		
 		// Debug: List all registered handlers
 		for (const auto& Pair : MethodHandlers)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[Behaviac]    - Registered: '%s'"), *Pair.Key);
+			BEHAVIAC_VLOG(TEXT("[Behaviac]    - Registered: '%s'"), *Pair.Key);
 		}
 	}
 
@@ -250,7 +250,7 @@ EBehaviacStatus UBehaviacAgentComponent::ExecuteMethod(const FString& MethodName
 		return BlueprintResult;
 	}
 
-	UE_LOG(LogTemp, Verbose, TEXT("[Behaviac] No handler for method: %s"), *MethodName);
+	UE_LOG(LogBehaviac, Verbose, TEXT("[Behaviac] No handler for method: %s"), *MethodName);
 	return EBehaviacStatus::Invalid;
 }
 

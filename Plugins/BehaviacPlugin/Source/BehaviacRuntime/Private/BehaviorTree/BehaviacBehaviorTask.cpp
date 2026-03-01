@@ -319,12 +319,12 @@ void UBehaviacBehaviorTreeTask::Init(UBehaviacBehaviorNode* InNode)
 			ChildTask->Init(InNode);
 			ChildTask->SetParentTask(this);
 			
-			UE_LOG(LogTemp, Warning, TEXT("[Behaviac] ✅ BehaviorTreeTask created ChildTask from node '%s'"), 
+			BEHAVIAC_VLOG(TEXT("[Behaviac] BehaviorTreeTask created ChildTask from node '%s'"), 
 				*InNode->GetName());
 		}
 		else
 		{
-			UE_LOG(LogTemp, Error, TEXT("[Behaviac] ❌ Node->CreateTask() returned NULL for node '%s'"), 
+			UE_LOG(LogBehaviac, Error, TEXT("[Behaviac] Node->CreateTask() returned NULL for node '%s'"), 
 				*InNode->GetName());
 		}
 	}

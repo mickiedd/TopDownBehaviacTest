@@ -10,6 +10,26 @@
 // Logging category
 BEHAVIACRUNTIME_API DECLARE_LOG_CATEGORY_EXTERN(LogBehaviac, Log, All);
 
+/**
+ * Console variable that controls verbose Behaviac debug logging.
+ * Enable at runtime:  Behaviac.VerboseLogging 1
+ * Or in DefaultEngine.ini:
+ *   [SystemSettings]
+ *   Behaviac.VerboseLogging=1
+ */
+BEHAVIACRUNTIME_API extern TAutoConsoleVariable<int32> CVarBehaviacVerboseLogging;
+
+/**
+ * Verbose log macro — only emits when Behaviac.VerboseLogging is non-zero.
+ * Use this instead of UE_LOG(LogTemp, Warning, ...) for noisy per-frame / init spam.
+ * Real errors should still use UE_LOG(LogBehaviac, Error, ...) directly.
+ */
+#define BEHAVIAC_VLOG(Format, ...) \
+	if (CVarBehaviacVerboseLogging.GetValueOnGameThread() != 0) \
+	{ \
+		UE_LOG(LogBehaviac, Log, Format, ##__VA_ARGS__); \
+	}
+
 /** Return values of node execution and valid states for behaviors. */
 UENUM(BlueprintType)
 enum class EBehaviacStatus : uint8

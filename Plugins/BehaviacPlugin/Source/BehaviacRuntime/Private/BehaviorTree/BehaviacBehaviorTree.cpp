@@ -74,7 +74,7 @@ static UBehaviacBehaviorNode* CreateNodeByClassName(const FString& ClassName, UO
 	// FSM
 	if (ClassName == TEXT("FSM"))				return NewObject<UBehaviacFSMNode>(Outer);
 
-	UE_LOG(LogTemp, Warning, TEXT("[Behaviac] Unknown node class: %s"), *ClassName);
+	UE_LOG(LogBehaviac, Warning, TEXT("[Behaviac] Unknown node class: %s"), *ClassName);
 	return nullptr;
 }
 
@@ -208,14 +208,14 @@ bool UBehaviacBehaviorTree::LoadFromXML(const FString& XMLContent)
 
 	if (!XmlFile.IsValid())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[Behaviac] Failed to parse XML content"));
+		UE_LOG(LogBehaviac, Warning, TEXT("[Behaviac] Failed to parse XML content"));
 		return false;
 	}
 
 	const FXmlNode* Root = XmlFile.GetRootNode();
 	if (!Root)
 	{
-		UE_LOG(LogTemp, Error, TEXT("[Behaviac] XML has no root node"));
+		UE_LOG(LogBehaviac, Error, TEXT("[Behaviac] XML has no root node"));
 		return false;
 	}
 
@@ -250,17 +250,17 @@ bool UBehaviacBehaviorTree::LoadFromXML(const FString& XMLContent)
 		
 		if (RootNode)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[Behaviac] ✅ XML parsed! RootNode=%s, ChildCount=%d"), 
+			BEHAVIAC_VLOG(TEXT("[Behaviac] XML parsed! RootNode=%s, ChildCount=%d"), 
 				*RootNode->GetName(), RootNode->GetChildCount());
 		}
 		else
 		{
-			UE_LOG(LogTemp, Error, TEXT("[Behaviac] ❌ ParseNodeFromXML returned NULL!"));
+			UE_LOG(LogBehaviac, Error, TEXT("[Behaviac] ParseNodeFromXML returned NULL!"));
 		}
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[Behaviac] ❌ No <node> element found in XML!"));
+		UE_LOG(LogBehaviac, Warning, TEXT("[Behaviac] No <node> element found in XML!"));
 	}
 
 	return RootNode != nullptr;
@@ -276,7 +276,7 @@ UBehaviacBehaviorTree* UBehaviacBehaviorTreeLibrary::LoadBehaviorTreeFromFile(UO
 
 	if (!FFileHelper::LoadFileToString(FileContent, *FilePath))
 	{
-		UE_LOG(LogTemp, Error, TEXT("[Behaviac] Failed to read file: %s"), *FilePath);
+		UE_LOG(LogBehaviac, Error, TEXT("[Behaviac] Failed to read file: %s"), *FilePath);
 		return nullptr;
 	}
 
@@ -289,6 +289,6 @@ UBehaviacBehaviorTree* UBehaviacBehaviorTreeLibrary::LoadBehaviorTreeFromFile(UO
 		return Tree;
 	}
 
-	UE_LOG(LogTemp, Error, TEXT("[Behaviac] Failed to parse behavior tree from file: %s"), *FilePath);
+	UE_LOG(LogBehaviac, Error, TEXT("[Behaviac] Failed to parse behavior tree from file: %s"), *FilePath);
 	return nullptr;
 }
