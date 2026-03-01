@@ -332,7 +332,7 @@ void UBehaviacBehaviorTreeTask::Init(UBehaviacBehaviorNode* InNode)
 
 EBehaviacStatus UBehaviacBehaviorTreeTask::Tick(UBehaviacAgentComponent* Agent)
 {
-	return Execute(Agent, EBehaviacStatus::Running);
+	return Execute(Agent, EBehaviacStatus::Invalid);
 }
 
 bool UBehaviacBehaviorTreeTask::OnEnter(UBehaviacAgentComponent* Agent)

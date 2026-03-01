@@ -21,6 +21,10 @@
 		{
 			"Name": "BehaviacPlugin",
 			"Enabled": true
+		},
+		{
+			"Name": "Puerts",
+			"Enabled": true
 		}
 	]
 }

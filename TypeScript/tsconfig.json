@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "module": "CommonJS",
+    "strict": false,
+    "sourceMap": false,
+    "outDir": "../Content/JavaScript",
+    "rootDir": ".",
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "typeRoots": ["../Plugins/Puerts/Typing/ue/", "../node_modules/@types"]
+  },
+  "include": ["./**/*.ts"]
+}

@@ -46,3 +46,7 @@ Plugins/*/Intermediate/
 **/__ExternalActors__/
 **/__ExternalObjects__/
 Content/StarterContent/
+
+# Puerts
+Plugins/Puerts/Binaries/
+Plugins/Puerts/Intermediate/
