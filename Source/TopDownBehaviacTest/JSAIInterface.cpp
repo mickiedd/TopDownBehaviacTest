@@ -224,6 +224,50 @@ void UJSAIInterface::SetSpeedRaw(float Speed)
         MC->MaxWalkSpeed = Speed;
 }
 
+void UJSAIInterface::FleeFromPlayer()
+{
+    APawn* Player = GetPlayer();
+    AAIController* AIC = GetAIC();
+    AActor* Owner = GetOwner();
+    if (!Player || !AIC || !Owner) return;
+    FVector Away = (Owner->GetActorLocation() - Player->GetActorLocation()).GetSafeNormal();
+    FVector FleeTarget = Owner->GetActorLocation() + Away * 1200.f;
+    AIC->MoveToLocation(FleeTarget, 80.f);
+}
+
+void UJSAIInterface::FaceAwayFromPlayer()
+{
+    APawn* Player = GetPlayer();
+    AActor* Owner = GetOwner();
+    if (!Player || !Owner) return;
+    FVector Away = (Owner->GetActorLocation() - Player->GetActorLocation()).GetSafeNormal();
+    FRotator R = Away.Rotation();
+    R.Pitch = 0.f; R.Roll = 0.f;
+    Owner->SetActorRotation(R);
+}
+
+void UJSAIInterface::RandomSpin()
+{
+    if (!GetOwner()) return;
+    // Deterministic-ish random using time
+    float Degrees = 60.f + FMath::Fmod(FPlatformTime::Seconds() * 137.f, 300.f);
+    FRotator R = GetOwner()->GetActorRotation();
+    R.Yaw += Degrees;
+    GetOwner()->SetActorRotation(R);
+}
+
+void UJSAIInterface::TauntJump()
+{
+    if (ACharacter* Char = Cast<ACharacter>(GetOwner()))
+    {
+        Char->LaunchCharacter(FVector(0, 0, 500.f), false, true);
+        // Spin 180 after launch
+        FRotator R = Char->GetActorRotation();
+        R.Yaw += 180.f;
+        Char->SetActorRotation(R);
+    }
+}
+
 // ── State ─────────────────────────────────────────────────────────────────────
 
 void UJSAIInterface::SetAIState(const FString& NewState)

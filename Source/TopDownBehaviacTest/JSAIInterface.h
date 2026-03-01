@@ -140,6 +140,22 @@ public:
     UFUNCTION(BlueprintCallable, Category = "AI|JS|Goofy")
     void SetSpeedRaw(float Speed);
 
+    /** Run directly away from player. */
+    UFUNCTION(BlueprintCallable, Category = "AI|JS|Goofy")
+    void FleeFromPlayer();
+
+    /** Face away from player. */
+    UFUNCTION(BlueprintCallable, Category = "AI|JS|Goofy")
+    void FaceAwayFromPlayer();
+
+    /** Spin a random amount (60-360 degrees). */
+    UFUNCTION(BlueprintCallable, Category = "AI|JS|Goofy")
+    void RandomSpin();
+
+    /** Launch up + spin 180 — classic taunt. */
+    UFUNCTION(BlueprintCallable, Category = "AI|JS|Goofy")
+    void TauntJump();
+
     // ── Blackboard / state ───────────────────────────────────────────────────
 
     /** Set a Behaviac blackboard string property. */

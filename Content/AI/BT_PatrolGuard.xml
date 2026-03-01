@@ -1,23 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  BT_PatrolGuard - Realistic patrol guard behavior tree.
+  BT_PatrolGuard - Patrol guard with emergent idiot behavior.
 
   AIState blackboard values (set by UpdateAIState every tick):
+    "Patrol"       - Default, walking between waypoints
+    "Chase"        - Player spotted within DetectionRadius
     "Combat"       - Player within AttackRange
-    "Chase"        - Player in DetectionRadius AND within GuardRadius
-    "Investigate"  - Player just lost, heading to last known pos
-    "ReturnToPost" - Player left GuardRadius, or NPC drifted from post
-    "Patrol"       - Default
+    "Investigate"  - Player lost, heading to last known position
+    "ReturnToPost" - Drifted too far from guard post
+    "Panic"        - Randomly enters panic state during Chase (flees + jumps)
+    "Taunt"        - Player nearby but no threat — show off
 
-  Structure:
-    Parallel (ChildFinishPolicy=Loop)
-      [0] DecoratorAlwaysSuccess → UpdateAIState   (runs every tick, never stops parallel)
-      [1] DecoratorLoop(-1) → SelectorLoop          (loops behaviour forever)
-            WithPrecondition → Combat
-            WithPrecondition → Chase
-            WithPrecondition → Investigate
-            WithPrecondition → ReturnToPost
-            Sequence         → Patrol               (fallthrough)
+  BT drives ALL decisions and sequencing.
+  TypeScript only implements what each leaf node does.
 -->
 <behavior name="BT_PatrolGuard" agenttype="BTAgent" version="5">
 
@@ -26,7 +21,7 @@
     <property name="FailurePolicy" value="FailOnOne_SucceedOnAll"/>
     <property name="ChildFinishPolicy" value="CHILDFINISH_LOOP"/>
 
-    <!-- ── CHILD 0: State updater ─────────────────────────────────────── -->
+    <!-- ── CHILD 0: State updater (always runs) ───────────────────────── -->
     <node class="DecoratorAlwaysSuccess" id="2">
       <node class="Action" id="3">
         <property name="Name" value="UpdateAIState"/>
@@ -41,7 +36,112 @@
       <node class="SelectorLoop" id="5">
         <property name="Name" value="BehaviourSelector"/>
 
-        <!-- BRANCH 1: COMBAT ─────────────────────────────────────────── -->
+        <!-- ── BRANCH: PANIC ──────────────────────────────────────────── -->
+        <!-- NPC freaks out: jumps, spins, flees, random crouch -->
+        <node class="WithPrecondition" id="50">
+          <node class="Condition" id="51">
+            <property name="Opl" value="Self.AIState"/>
+            <property name="Operator" value="Equal"/>
+            <property name="Opr" value="Panic"/>
+          </node>
+          <node class="Sequence" id="52">
+            <property name="Name" value="PanicSequence"/>
+            <!-- Scream-jump -->
+            <node class="Action" id="53">
+              <property name="Name" value="Jump"/>
+              <property name="Method" value="Jump"/>
+            </node>
+            <!-- Face away and sprint -->
+            <node class="Action" id="54">
+              <property name="Name" value="FaceAwayFromPlayer"/>
+              <property name="Method" value="FaceAwayFromPlayer"/>
+            </node>
+            <node class="Action" id="55">
+              <property name="Name" value="SprintSpeed"/>
+              <property name="Method" value="SprintSpeed"/>
+            </node>
+            <!-- Flee loop: run away, jump occasionally -->
+            <node class="DecoratorLoop" id="56">
+              <property name="Count" value="4"/>
+              <node class="Sequence" id="57">
+                <node class="Action" id="58">
+                  <property name="Name" value="FleeFromPlayer"/>
+                  <property name="Method" value="FleeFromPlayer"/>
+                </node>
+                <node class="Wait" id="59">
+                  <property name="Time" value="0.4"/>
+                </node>
+                <node class="Action" id="60">
+                  <property name="Name" value="Jump"/>
+                  <property name="Method" value="Jump"/>
+                </node>
+                <node class="Wait" id="61">
+                  <property name="Time" value="0.3"/>
+                </node>
+              </node>
+            </node>
+            <!-- Confusion spin at end -->
+            <node class="Action" id="62">
+              <property name="Name" value="RandomSpin"/>
+              <property name="Method" value="RandomSpin"/>
+            </node>
+            <node class="Action" id="63">
+              <property name="Name" value="StopMovement"/>
+              <property name="Method" value="StopMovement"/>
+            </node>
+            <node class="Wait" id="64">
+              <property name="Time" value="1.0"/>
+            </node>
+          </node>
+        </node>
+
+        <!-- ── BRANCH: TAUNT ──────────────────────────────────────────── -->
+        <!-- Player nearby but non-threatening: show off like an idiot -->
+        <node class="WithPrecondition" id="70">
+          <node class="Condition" id="71">
+            <property name="Opl" value="Self.AIState"/>
+            <property name="Operator" value="Equal"/>
+            <property name="Opr" value="Taunt"/>
+          </node>
+          <node class="Sequence" id="72">
+            <property name="Name" value="TauntSequence"/>
+            <node class="Action" id="73">
+              <property name="Name" value="FaceTarget"/>
+              <property name="Method" value="FaceTarget"/>
+            </node>
+            <!-- TauntJump: launch up + 180 spin -->
+            <node class="Action" id="74">
+              <property name="Name" value="TauntJump"/>
+              <property name="Method" value="TauntJump"/>
+            </node>
+            <node class="Wait" id="75">
+              <property name="Time" value="0.5"/>
+            </node>
+            <!-- Spin twice more -->
+            <node class="Action" id="76">
+              <property name="Name" value="Spin"/>
+              <property name="Method" value="Spin"/>
+            </node>
+            <node class="Action" id="77">
+              <property name="Name" value="Spin"/>
+              <property name="Method" value="Spin"/>
+            </node>
+            <!-- Crouch taunt -->
+            <node class="Action" id="78">
+              <property name="Name" value="Crouch"/>
+              <property name="Method" value="Crouch"/>
+            </node>
+            <node class="Wait" id="79">
+              <property name="Time" value="0.8"/>
+            </node>
+            <node class="Action" id="80">
+              <property name="Name" value="UnCrouch"/>
+              <property name="Method" value="UnCrouch"/>
+            </node>
+          </node>
+        </node>
+
+        <!-- ── BRANCH: COMBAT ─────────────────────────────────────────── -->
         <node class="WithPrecondition" id="6">
           <node class="Condition" id="7">
             <property name="Opl" value="Self.AIState"/>
@@ -61,6 +161,15 @@
             <node class="DecoratorLoop" id="11">
               <property name="Count" value="-1"/>
               <node class="Sequence" id="12">
+                <!-- 30% chance to dash in before attacking -->
+                <node class="DecoratorAlwaysSuccess" id="90">
+                  <node class="Sequence" id="91">
+                    <node class="Action" id="92">
+                      <property name="Name" value="MaybeJumpAttack"/>
+                      <property name="Method" value="MaybeJumpAttack"/>
+                    </node>
+                  </node>
+                </node>
                 <node class="Action" id="13">
                   <property name="Name" value="AttackPlayer"/>
                   <property name="Method" value="AttackPlayer"/>
@@ -73,7 +182,7 @@
           </node>
         </node>
 
-        <!-- BRANCH 2: CHASE ──────────────────────────────────────────── -->
+        <!-- ── BRANCH: CHASE ──────────────────────────────────────────── -->
         <node class="WithPrecondition" id="15">
           <node class="Condition" id="16">
             <property name="Opl" value="Self.AIState"/>
@@ -89,6 +198,13 @@
             <node class="DecoratorLoop" id="19">
               <property name="Count" value="-1"/>
               <node class="Sequence" id="20">
+                <!-- Occasionally sprint burst while chasing -->
+                <node class="DecoratorAlwaysSuccess" id="100">
+                  <node class="Action" id="101">
+                    <property name="Name" value="MaybeSprintBurst"/>
+                    <property name="Method" value="MaybeSprintBurst"/>
+                  </node>
+                </node>
                 <node class="Action" id="21">
                   <property name="Name" value="ChasePlayer"/>
                   <property name="Method" value="ChasePlayer"/>
@@ -101,7 +217,47 @@
           </node>
         </node>
 
-        <!-- BRANCH 3: RETURN TO POST ─────────────────────────────────── -->
+        <!-- ── BRANCH: INVESTIGATE ────────────────────────────────────── -->
+        <node class="WithPrecondition" id="23">
+          <node class="Condition" id="24">
+            <property name="Opl" value="Self.AIState"/>
+            <property name="Operator" value="Equal"/>
+            <property name="Opr" value="Investigate"/>
+          </node>
+          <node class="Sequence" id="25">
+            <property name="Name" value="InvestigateSequence"/>
+            <node class="Action" id="26">
+              <property name="Name" value="SetWalkSpeed"/>
+              <property name="Method" value="SetWalkSpeed"/>
+            </node>
+            <node class="DecoratorLoopUntil" id="27">
+              <property name="UntilSuccess" value="true"/>
+              <node class="Action" id="28">
+                <property name="Name" value="MoveToLastKnownPos"/>
+                <property name="Method" value="MoveToLastKnownPos"/>
+              </node>
+            </node>
+            <!-- Arrived: look around, then give up -->
+            <node class="DecoratorLoop" id="29">
+              <property name="Count" value="3"/>
+              <node class="Sequence" id="30">
+                <node class="Action" id="31">
+                  <property name="Name" value="LookAround"/>
+                  <property name="Method" value="LookAround"/>
+                </node>
+                <node class="Wait" id="32">
+                  <property name="Time" value="0.8"/>
+                </node>
+              </node>
+            </node>
+            <node class="Action" id="33_inv">
+              <property name="Name" value="ClearLastKnownPos"/>
+              <property name="Method" value="ClearLastKnownPos"/>
+            </node>
+          </node>
+        </node>
+
+        <!-- ── BRANCH: RETURN TO POST ─────────────────────────────────── -->
         <node class="WithPrecondition" id="33">
           <node class="Condition" id="34">
             <property name="Opl" value="Self.AIState"/>
@@ -121,15 +277,27 @@
                 <property name="Method" value="ReturnToPost"/>
               </node>
             </node>
+            <!-- Arrived home: happy jump -->
+            <node class="Action" id="38b">
+              <property name="Name" value="Jump"/>
+              <property name="Method" value="Jump"/>
+            </node>
           </node>
         </node>
 
-        <!-- BRANCH 5: PATROL (fallthrough) ──────────────────────────── -->
+        <!-- ── BRANCH: PATROL (fallthrough) ──────────────────────────── -->
         <node class="Sequence" id="39">
           <property name="Name" value="PatrolSequence"/>
           <node class="Action" id="40">
             <property name="Name" value="SetWalkSpeed"/>
             <property name="Method" value="SetWalkSpeed"/>
+          </node>
+          <!-- Occasionally crouch-walk for no reason -->
+          <node class="DecoratorAlwaysSuccess" id="110">
+            <node class="Action" id="111">
+              <property name="Name" value="MaybeCrouch"/>
+              <property name="Method" value="MaybeCrouch"/>
+            </node>
           </node>
           <node class="Action" id="41">
             <property name="Name" value="Patrol"/>
@@ -138,6 +306,11 @@
           <node class="Wait" id="42">
             <property name="Time" value="2.0"/>
           </node>
+          <node class="Action" id="112">
+            <property name="Name" value="UnCrouch"/>
+            <property name="Method" value="UnCrouch"/>
+          </node>
+          <!-- Scan at waypoint -->
           <node class="Sequence" id="43">
             <property name="Name" value="ScanAtWaypoint"/>
             <node class="Action" id="44">
@@ -145,13 +318,22 @@
               <property name="Method" value="LookAround"/>
             </node>
             <node class="Wait" id="45">
-              <property name="Time" value="1.5"/>
+              <property name="Time" value="1.0"/>
+            </node>
+            <!-- Idiot: random spin while scanning -->
+            <node class="DecoratorAlwaysSuccess" id="113">
+              <node class="Action" id="114">
+                <property name="Name" value="RandomSpin"/>
+                <property name="Method" value="RandomSpin"/>
+              </node>
+            </node>
+            <node class="Wait" id="115">
+              <property name="Time" value="0.5"/>
             </node>
             <node class="Action" id="46">
               <property name="Name" value="FindPlayer"/>
               <property name="Method" value="FindPlayer"/>
             </node>
-            <!-- AlwaysSuccess so patrol continues even when no player found -->
             <node class="DecoratorAlwaysSuccess" id="47">
               <node class="Noop" id="48"/>
             </node>
