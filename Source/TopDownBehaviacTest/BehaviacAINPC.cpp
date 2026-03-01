@@ -111,6 +111,20 @@ void ABehaviacAINPC::BeginPlay()
 		BehaviacAgent->RegisterMethodHandler(TEXT("LookAround"),       [this]() { return LookAround(); });
 		BehaviacAgent->RegisterMethodHandler(TEXT("ClearLastKnownPos"), [this]() { return ClearLastKnownPos(); });
 		BehaviacAgent->RegisterMethodHandler(TEXT("ReturnToPost"),      [this]() { return ReturnToPost(); });
+
+		// JS-only actions — C++ lambda is a no-op fallback; JS does the real work via DispatchOrRun
+		BehaviacAgent->RegisterMethodHandler(TEXT("Jump"),              [this]() { return DispatchOrRun(TEXT("Jump"),              [](){ return EBehaviacStatus::Success; }); });
+		BehaviacAgent->RegisterMethodHandler(TEXT("Crouch"),            [this]() { return DispatchOrRun(TEXT("Crouch"),            [](){ return EBehaviacStatus::Success; }); });
+		BehaviacAgent->RegisterMethodHandler(TEXT("UnCrouch"),          [this]() { return DispatchOrRun(TEXT("UnCrouch"),          [](){ return EBehaviacStatus::Success; }); });
+		BehaviacAgent->RegisterMethodHandler(TEXT("Spin"),              [this]() { return DispatchOrRun(TEXT("Spin"),              [](){ return EBehaviacStatus::Success; }); });
+		BehaviacAgent->RegisterMethodHandler(TEXT("RandomSpin"),        [this]() { return DispatchOrRun(TEXT("RandomSpin"),        [](){ return EBehaviacStatus::Success; }); });
+		BehaviacAgent->RegisterMethodHandler(TEXT("TauntJump"),         [this]() { return DispatchOrRun(TEXT("TauntJump"),         [](){ return EBehaviacStatus::Success; }); });
+		BehaviacAgent->RegisterMethodHandler(TEXT("FleeFromPlayer"),    [this]() { return DispatchOrRun(TEXT("FleeFromPlayer"),    [](){ return EBehaviacStatus::Running;  }); });
+		BehaviacAgent->RegisterMethodHandler(TEXT("FaceAwayFromPlayer"),[this]() { return DispatchOrRun(TEXT("FaceAwayFromPlayer"),[](){ return EBehaviacStatus::Success; }); });
+		BehaviacAgent->RegisterMethodHandler(TEXT("SprintSpeed"),       [this]() { return DispatchOrRun(TEXT("SprintSpeed"),       [](){ return EBehaviacStatus::Success; }); });
+		BehaviacAgent->RegisterMethodHandler(TEXT("MaybeCrouch"),       [this]() { return DispatchOrRun(TEXT("MaybeCrouch"),       [](){ return EBehaviacStatus::Success; }); });
+		BehaviacAgent->RegisterMethodHandler(TEXT("MaybeSprintBurst"),  [this]() { return DispatchOrRun(TEXT("MaybeSprintBurst"),  [](){ return EBehaviacStatus::Success; }); });
+		BehaviacAgent->RegisterMethodHandler(TEXT("MaybeJumpAttack"),   [this]() { return DispatchOrRun(TEXT("MaybeJumpAttack"),   [](){ return EBehaviacStatus::Success; }); });
 		
 		UE_LOG(LogTemp, Warning, TEXT("✅ Registered 3 methods: FindPlayer, Patrol, MoveToTarget"));
 	}
