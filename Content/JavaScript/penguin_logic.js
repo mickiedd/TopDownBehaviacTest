@@ -12,14 +12,7 @@ else {
     const Success = 1;
     const Failure = 2;
     // ── State ──────────────────────────────────────────────────────────────
-    // Wander target: penguin picks one each cycle and navigates to it.
-    // SpawnX/Y are cached for radius math.
-    const spawnX = self.GetLocationX();
-    const spawnY = self.GetLocationY();
-    let targetX = spawnX;
-    let targetY = spawnY;
-    let hasTarget = false;
-    // LookAround: JS drives timing via a settled flag (same idea as C++ bLookAroundComplete)
+    // LookAround: JS drives the turn duration with a timer.
     let lookStartTime = 0;
     let lookDurationMs = 0;
     let lookingAround = false;
@@ -39,32 +32,18 @@ else {
             console.log(`[penguin_logic] ${name} mood → ${roll.toFixed(2)} ${mood}`);
             return Success;
         },
-        // ── Navigation ────────────────────────────────────────────────────
+        // ── Navigation — fall through to C++ for all nav calls ───────────
+        // JS doesn't have access to AIController/pathfinding.
+        // C++ CPP_PickWanderTarget sets bHasWanderTarget; CPP_MoveToWanderTarget
+        // issues MoveToLocation and returns Running until arrived.
         "PickWanderTarget": () => {
-            const radius = self.WanderRadius;
-            const angle = Math.random() * 2 * Math.PI;
-            const dist = radius * (0.3 + Math.random() * 0.7);
-            targetX = spawnX + Math.cos(angle) * dist;
-            targetY = spawnY + Math.sin(angle) * dist;
-            hasTarget = true;
-            console.log(`[penguin_logic] ${name} → target (${targetX.toFixed(0)}, ${targetY.toFixed(0)}) dist=${dist.toFixed(0)}`);
-            return Success;
+            return FALLTHROUGH; // C++ handles target selection + bHasWanderTarget
         },
         "MoveToWanderTarget": () => {
-            if (!hasTarget)
-                return Failure;
-            const px = self.GetLocationX();
-            const py = self.GetLocationY();
-            const acceptance = self.WanderAcceptanceRadius;
-            if (dist2D(px, py, targetX, targetY) <= acceptance)
-                return Success;
-            // Fall through to C++ for actual AIController.MoveToLocation
-            return FALLTHROUGH; // INT32_MIN → DispatchOrRun falls back to C++
+            return FALLTHROUGH; // C++ handles AIController.MoveToLocation
         },
         "StopMovement": () => {
-            hasTarget = false;
-            // Fall through to C++ for AIController.StopMovement
-            return FALLTHROUGH; // INT32_MIN → fall through to C++
+            return FALLTHROUGH; // C++ handles AIController.StopMovement
         },
         // ── LookAround: JS timer-based (no bLookAroundComplete state in C++) ──
         "LookAround": () => {
