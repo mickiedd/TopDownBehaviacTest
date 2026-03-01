@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # launch_game.sh
-# Launch the Unreal Editor with the TopDownBehaviacTest project.
+# Build then launch the Unreal Editor with the TopDownBehaviacTest project.
 # Usage: ./launch_game.sh [path/to/Project.uproject]
 
 # Resolve base directory (script location)
@@ -14,6 +14,7 @@ UPROJECT_PATH="${1:-$BASE_DIR/TopDownBehaviacTest.uproject}"
 # Paths to Unreal app and binary
 UNREAL_APP="/Volumes/M2/Engine/UE_5.5/Engine/Binaries/Mac/UnrealEditor.app"
 UNREAL_BIN="$UNREAL_APP/Contents/MacOS/UnrealEditor"
+UBT="/Volumes/M2/Engine/UE_5.5/Engine/Build/BatchFiles/Mac/Build.sh"
 
 # Arguments
 LOG_ARG="-log"
@@ -24,6 +25,18 @@ if [ ! -f "$UPROJECT_PATH" ]; then
 	exit 1
 fi
 
+# ── Build ────────────────────────────────────────────────────────────────────
+echo "==> Building TopDownBehaviacTestEditor (Development)..."
+if [ ! -x "$UBT" ]; then
+	echo "Error: UnrealBuildTool not found at $UBT" >&2
+	exit 1
+fi
+
+"$UBT" TopDownBehaviacTestEditor Mac Development "$UPROJECT_PATH" -waitmutex
+echo "==> Build succeeded."
+
+# ── Launch ───────────────────────────────────────────────────────────────────
+echo "==> Launching UnrealEditor..."
 if [ -x "$UNREAL_BIN" ]; then
 	exec "$UNREAL_BIN" "$UPROJECT_PATH" $LOG_ARG "$SAVE_DIR_ARG"
 else
