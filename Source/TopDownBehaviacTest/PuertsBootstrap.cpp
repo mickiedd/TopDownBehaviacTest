@@ -1,44 +1,37 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "PuertsBootstrap.h"
-#include "JsEnv.h"
-#include "Misc/Paths.h"
 
 APuertsBootstrapActor::APuertsBootstrapActor()
 {
     PrimaryActorTick.bCanEverTick = false;
-    ScriptPath = TEXT("JavaScript/main.js");
+    ScriptModule = TEXT("main");
 }
 
 void APuertsBootstrapActor::BeginPlay()
 {
     Super::BeginPlay();
 
-    // Resolve absolute path: <ProjectDir>/Content/<ScriptPath>
-    FString FullPath = FPaths::ProjectContentDir() / ScriptPath;
-    FPaths::NormalizeFilename(FullPath);
+    UE_LOG(LogTemp, Warning, TEXT("[Puerts] Initialising JS environment (QuickJS)..."));
 
-    UE_LOG(LogTemp, Warning, TEXT("[Puerts] Initialising JS environment..."));
-    UE_LOG(LogTemp, Warning, TEXT("[Puerts] Script: %s"), *FullPath);
+    // FJsEnv constructor takes an optional ScriptRoot (defaults to "JavaScript")
+    JsEnv = MakeUnique<PUERTS_NAMESPACE::FJsEnv>();
 
-    // Create the JS environment (QuickJS backend)
-    JsEnv = MakeShared<puerts::FJsEnv>();
-
-    if (!JsEnv.IsValid())
+    if (!JsEnv)
     {
         UE_LOG(LogTemp, Error, TEXT("[Puerts] Failed to create JS environment!"));
         return;
     }
 
-    UE_LOG(LogTemp, Warning, TEXT("[Puerts] JS environment ready. Running script..."));
+    UE_LOG(LogTemp, Warning, TEXT("[Puerts] Running module: %s"), *ScriptModule);
 
-    // Execute the entry-point script
-    JsEnv->Start(ScriptPath, {});
+    // Start() takes a module name (resolved relative to Content/JavaScript/) and optional args
+    JsEnv->Start(ScriptModule, TArray<TPair<FString, UObject*>>());
 }
 
 void APuertsBootstrapActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-    if (JsEnv.IsValid())
+    if (JsEnv)
     {
         UE_LOG(LogTemp, Warning, TEXT("[Puerts] Shutting down JS environment."));
         JsEnv.Reset();

@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "JsEnv.h"
 #include "PuertsBootstrap.generated.h"
 
 /**
@@ -23,9 +24,9 @@ class TOPDOWNBEHAVIACTEST_API APuertsBootstrapActor : public AActor
 public:
     APuertsBootstrapActor();
 
-    /** Path to the entry-point JS file, relative to the project Content directory. */
+    /** Path to the entry-point JS module name (relative to Content/JavaScript, no extension). */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Puerts")
-    FString ScriptPath;
+    FString ScriptModule;
 
 protected:
     virtual void BeginPlay() override;
@@ -33,5 +34,5 @@ protected:
 
 private:
     /** Owning JS environment — kept alive for the duration of the actor's life. */
-    TSharedPtr<puerts::FJsEnv> JsEnv;
+    TUniquePtr<PUERTS_NAMESPACE::FJsEnv> JsEnv;
 };
