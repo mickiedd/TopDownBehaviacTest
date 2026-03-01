@@ -1,68 +1,113 @@
 "use strict";
-// npc_logic.js — TS/JS logic layer for BP_AINPC
-// BT actions are dispatched here from C++ via PuertsNPCComponent.OnBTAction
+// npc_logic.js — Full behavior logic in TypeScript/JS
+// All BT actions handled here; C++ provides only primitive movement/sensor helpers.
 
-const self      = puerts.argv.getByName("self");
-const btBridge  = puerts.argv.getByName("btBridge");
+const self     = puerts.argv.getByName("self");
+const btBridge = puerts.argv.getByName("btBridge");
 
 if (!self || !btBridge) {
     console.error("[npc_logic] ERROR: missing argv (self or btBridge)");
 } else {
     const name = String(self.GetName());
-    console.log(`[npc_logic] ✅ Loaded for NPC: ${name}`);
-    console.log(`[npc_logic] 📋 DetectionRadius: ${self.DetectionRadius}, WalkSpeed: ${self.WalkSpeed}, RunSpeed: ${self.RunSpeed}, GuardRadius: ${self.GuardRadius}`);
+    console.log(`[npc_logic] ✅ Loaded for: ${name}`);
+    console.log(`[npc_logic] 📋 DetectionRadius: ${self.DetectionRadius}, WalkSpeed: ${self.WalkSpeed}, RunSpeed: ${self.RunSpeed}, AttackRange: ${self.AttackRange}, CombatRange: ${self.CombatRange}, GuardRadius: ${self.GuardRadius}`);
 
     // ── BT result constants ──────────────────────────────────────────────────
     const Running = 0;
     const Success = 1;
     const Failure = 2;
 
-    // ── Action handler map ───────────────────────────────────────────────────
-    // Return Running/Success/Failure. Call btBridge.SetBTResult(n) then return.
-    // Any action NOT listed here falls back to the C++ implementation.
+    // ── Action handlers ──────────────────────────────────────────────────────
     const handlers = {
 
-        "ChasePlayer": () => {
-            const aiState = String(self.GetBehaviacProperty("AIState"));
-            if (aiState !== "Chase") {
-                console.log(`[npc_logic][${name}] ChasePlayer: state is ${aiState}, bailing`);
-                return Failure;
-            }
-            const target = self.TargetPlayer;
-            if (!target) {
-                console.log(`[npc_logic][${name}] ChasePlayer: no target`);
-                return Failure;
-            }
-            const dist = Math.round(self.GetDistanceToTarget());
-            const attackRange = self.AttackRange || 150;
-            if (dist <= attackRange) {
-                console.log(`[npc_logic][${name}] ChasePlayer: in attack range (${dist})`);
-                return Success;
-            }
-            console.log(`[npc_logic][${name}] ChasePlayer: sprinting (dist=${dist})`);
-            self.JS_MoveToTarget();   // C++ primitive: MoveToActor
-            return Running;
-        },
+        // ── State machine ────────────────────────────────────────────────────
+        "UpdateAIState": () => {
+            const distFromPost   = self.JS_GetDistanceFromPost();
+            const distToPlayer   = self.JS_GetDistanceToPlayer();
+            const playerFromPost = self.JS_GetPlayerDistanceFromPost();
+            const canSee         = self.JS_CanSeePlayer();
+            const currentState   = String(self.GetBehaviacProperty("AIState"));
 
-        "AttackPlayer": () => {
-            const aiState = String(self.GetBehaviacProperty("AIState"));
-            if (aiState !== "Combat") return Failure;
-            const target = self.TargetPlayer;
-            if (!target) return Failure;
-            const dist = Math.round(self.GetDistanceToTarget());
-            const combatRange = self.CombatRange || 200;
-            if (dist > combatRange) {
-                console.log(`[npc_logic][${name}] AttackPlayer: out of range (${dist})`);
-                return Failure;
+            let newState = "Patrol";
+
+            if (canSee && distToPlayer <= self.AttackRange) {
+                newState = "Combat";
+                self.JS_SetLastKnownPos();
+            } else if (canSee && distToPlayer <= self.DetectionRadius) {
+                newState = "Chase";
+                self.JS_SetLastKnownPos();
+            } else if (currentState === "Chase" || currentState === "Combat") {
+                // Lost sight — investigate last known position
+                newState = (distFromPost > self.GuardRadius) ? "ReturnToPost" : "Investigate";
+            } else if (distFromPost > self.GuardRadius) {
+                newState = "ReturnToPost";
             }
-            console.log(`[npc_logic][${name}] ⚔️ AttackPlayer: HIT! dist=${dist}`);
+
+            self.JS_SetAIState(newState);
             return Success;
         },
 
+        // ── Movement speed ───────────────────────────────────────────────────
+        "SetWalkSpeed": () => {
+            self.JS_SetSpeed(self.WalkSpeed);
+            return Success;
+        },
+
+        "SetRunSpeed": () => {
+            self.JS_SetSpeed(self.RunSpeed);
+            return Success;
+        },
+
+        // ── Patrol ───────────────────────────────────────────────────────────
         "Patrol": () => {
-            console.log(`[npc_logic][${name}] Patrol: JS patrolling`);
-            self.JS_Patrol();    // C++ primitive: move to next patrol point
+            self.JS_Patrol();
             return Running;
+        },
+
+        "FindPlayer": () => {
+            const canSee = self.JS_CanSeePlayer();
+            if (canSee) {
+                self.JS_SetLastKnownPos();
+                return Success;
+            }
+            return Failure;
+        },
+
+        "MoveToTarget": () => {
+            const dist = self.GetDistanceToTarget();
+            if (dist < 0) return Failure;
+            if (dist <= self.AttackRange) return Success;
+            self.JS_MoveToTarget();
+            return Running;
+        },
+
+        // ── Chase ────────────────────────────────────────────────────────────
+        "ChasePlayer": () => {
+            const aiState = String(self.GetBehaviacProperty("AIState"));
+            if (aiState !== "Chase") {
+                self.JS_StopMovement();
+                return Failure;
+            }
+            const dist = self.GetDistanceToTarget();
+            if (dist < 0) return Failure;
+            if (dist <= self.AttackRange) return Success;
+            self.JS_MoveToTarget();
+            return Running;
+        },
+
+        // ── Combat ───────────────────────────────────────────────────────────
+        "AttackPlayer": () => {
+            const aiState = String(self.GetBehaviacProperty("AIState"));
+            if (aiState !== "Combat") return Failure;
+            const dist = self.GetDistanceToTarget();
+            if (dist < 0 || dist > self.CombatRange) return Failure;
+            console.log(`[npc_logic][${name}] ⚔️ HIT! dist=${Math.round(dist)}`);
+            return Success;
+        },
+
+        "FaceTarget": () => {
+            self.JS_FaceTarget();
+            return Success;
         },
 
         "StopMovement": () => {
@@ -70,9 +115,33 @@ if (!self || !btBridge) {
             return Success;
         },
 
+        // ── Investigate ──────────────────────────────────────────────────────
+        "MoveToLastKnownPos": () => {
+            const arrived = self.JS_MoveToLastKnownPos();
+            return arrived ? Success : Running;
+        },
+
         "LookAround": () => {
             self.JS_LookAround();
             return Success;
+        },
+
+        "ClearLastKnownPos": () => {
+            self.JS_ClearLastKnownPos();
+            self.JS_SetAIState("Patrol");
+            return Success;
+        },
+
+        // ── Return to post ───────────────────────────────────────────────────
+        "ReturnToPost": () => {
+            const dist = self.JS_GetDistanceFromPost();
+            if (dist < 100) {
+                self.JS_SetAIState("Patrol");
+                return Success;
+            }
+            self.JS_SetSpeed(self.WalkSpeed);
+            self.JS_MoveToPost();
+            return Running;
         },
     };
 
@@ -81,33 +150,29 @@ if (!self || !btBridge) {
         const handler = handlers[String(actionName)];
         if (handler) {
             try {
-                const result = handler();
-                btBridge.SetBTResult(result);
+                btBridge.SetBTResult(handler());
             } catch(e) {
-                console.error(`[npc_logic][${name}] ❌ Handler error for ${actionName}: ${e}`);
-                btBridge.SetBTResult(2); // Failure
+                console.error(`[npc_logic][${name}] ❌ ${actionName}: ${e}`);
+                btBridge.SetBTResult(Failure);
             }
         }
-        // No handler → do NOT call SetBTResult → sentinel stays → C++ fallback runs
+        // No handler → sentinel stays → C++ fallback
     });
 
-    console.log(`[npc_logic] ✅ BT handler bound. Handlers: [${Object.keys(handlers).join(", ")}]`);
-    console.log(`[npc_logic] 📋 Unregistered actions fall back to C++ implementations.`);
+    console.log(`[npc_logic] ✅ BT handlers registered: [${Object.keys(handlers).join(", ")}]`);
 
-    // ── Status logger ────────────────────────────────────────────────────────
-    let tickCount = 0;
+    // ── Status logger (every 3s) ─────────────────────────────────────────────
+    let tick = 0;
     setInterval(() => {
         try {
-            tickCount++;
-            const aiState = String(self.GetBehaviacProperty("AIState"));
-            const px = Math.round(self.GetLocationX());
-            const py = Math.round(self.GetLocationY());
-            const speed = Math.round(self.GetSpeedXY());
-            const target = self.TargetPlayer;
-            const targetStr = target ? String(target.GetName()) : "none";
-            console.log(`[npc_logic][${name}] tick#${tickCount} | State: ${aiState} | Pos: (${px}, ${py}) | Speed: ${speed} | Target: ${targetStr}`);
-        } catch(e) {
-            console.error(`[npc_logic][${name}] ❌ Status tick error: ${e}`);
-        }
+            tick++;
+            const state   = String(self.GetBehaviacProperty("AIState"));
+            const px      = Math.round(self.GetLocationX());
+            const py      = Math.round(self.GetLocationY());
+            const speed   = Math.round(self.GetSpeedXY());
+            const target  = self.TargetPlayer;
+            const tStr    = target ? String(target.GetName()) : "none";
+            console.log(`[npc_logic][${name}] tick#${tick} | ${state} | (${px},${py}) | spd:${speed} | tgt:${tStr}`);
+        } catch(e) {}
     }, 3000);
 }

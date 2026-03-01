@@ -149,6 +149,40 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "AI|JS")
 	void JS_LookAround();
 
+	/** Returns true if the NPC has line-of-sight to the player and they are within DetectionRadius. */
+	UFUNCTION(BlueprintCallable, Category = "AI|JS")
+	bool JS_CanSeePlayer() const;
+	/** Distance from current position to guard spawn post. */
+	UFUNCTION(BlueprintCallable, Category = "AI|JS")
+	float JS_GetDistanceFromPost() const;
+	/** Distance from player to guard spawn post (-1 if no player). */
+	UFUNCTION(BlueprintCallable, Category = "AI|JS")
+	float JS_GetPlayerDistanceFromPost() const;
+	/** Distance to player (-1 if no player). */
+	UFUNCTION(BlueprintCallable, Category = "AI|JS")
+	float JS_GetDistanceToPlayer() const;
+	/** Set movement speed directly. */
+	UFUNCTION(BlueprintCallable, Category = "AI|JS")
+	void JS_SetSpeed(float Speed);
+	/** Set the AIState blackboard property and log the transition. */
+	UFUNCTION(BlueprintCallable, Category = "AI|JS")
+	void JS_SetAIState(const FString& NewState);
+	/** Store last known player position in the blackboard. */
+	UFUNCTION(BlueprintCallable, Category = "AI|JS")
+	void JS_SetLastKnownPos();
+	/** Clear last known position and target. */
+	UFUNCTION(BlueprintCallable, Category = "AI|JS")
+	void JS_ClearLastKnownPos();
+	/** Move to last known player position. Returns true if already there. */
+	UFUNCTION(BlueprintCallable, Category = "AI|JS")
+	bool JS_MoveToLastKnownPos();
+	/** Face the current target player. */
+	UFUNCTION(BlueprintCallable, Category = "AI|JS")
+	void JS_FaceTarget();
+	/** Navigate back to guard spawn post. */
+	UFUNCTION(BlueprintCallable, Category = "AI|JS")
+	void JS_MoveToPost();
+
 private:
 	/**
 	 * If PuertsNPC has a JS handler bound, dispatch the action to JS and return its result.

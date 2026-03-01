@@ -413,6 +413,100 @@ void ABehaviacAINPC::JS_LookAround()
 	SetActorRotation(Current);
 }
 
+bool ABehaviacAINPC::JS_CanSeePlayer() const
+{
+	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+	if (!PlayerPawn) return false;
+	float Dist = FVector::Distance(GetActorLocation(), PlayerPawn->GetActorLocation());
+	if (Dist > DetectionRadius) return false;
+	FVector EyeLocation = GetActorLocation() + FVector(0, 0, 60.f);
+	FVector PlayerCenter = PlayerPawn->GetActorLocation() + FVector(0, 0, 60.f);
+	FHitResult HitResult;
+	FCollisionQueryParams Params;
+	Params.AddIgnoredActor(this);
+	Params.AddIgnoredActor(PlayerPawn);
+	bool bBlocked = GetWorld()->LineTraceSingleByChannel(HitResult, EyeLocation, PlayerCenter, ECC_Visibility, Params);
+	return !bBlocked;
+}
+
+float ABehaviacAINPC::JS_GetDistanceFromPost() const
+{
+	return FVector::Distance(GetActorLocation(), GuardCenter);
+}
+
+float ABehaviacAINPC::JS_GetPlayerDistanceFromPost() const
+{
+	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+	if (!PlayerPawn) return -1.f;
+	return FVector::Distance(PlayerPawn->GetActorLocation(), GuardCenter);
+}
+
+float ABehaviacAINPC::JS_GetDistanceToPlayer() const
+{
+	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+	if (!PlayerPawn) return -1.f;
+	return FVector::Distance(GetActorLocation(), PlayerPawn->GetActorLocation());
+}
+
+void ABehaviacAINPC::JS_SetSpeed(float Speed)
+{
+	GetCharacterMovement()->MaxWalkSpeed = Speed;
+}
+
+void ABehaviacAINPC::JS_SetAIState(const FString& NewState)
+{
+	if (!BehaviacAgent) return;
+	FString OldState = BehaviacAgent->GetPropertyValue(TEXT("AIState"));
+	if (OldState != NewState)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[JS] AIState: %s → %s"), *OldState, *NewState);
+		BehaviacAgent->SetPropertyValue(TEXT("AIState"), NewState);
+	}
+}
+
+void ABehaviacAINPC::JS_SetLastKnownPos()
+{
+	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+	if (!PlayerPawn) return;
+	TargetPlayer = PlayerPawn;
+	bHasLastKnownPos = true;
+	LastKnownPlayerPos = PlayerPawn->GetActorLocation();
+}
+
+void ABehaviacAINPC::JS_ClearLastKnownPos()
+{
+	bHasLastKnownPos = false;
+	LastKnownPlayerPos = FVector::ZeroVector;
+	TargetPlayer = nullptr;
+}
+
+bool ABehaviacAINPC::JS_MoveToLastKnownPos()
+{
+	if (!bHasLastKnownPos) return false;
+	AAIController* AIC = Cast<AAIController>(GetController());
+	if (!AIC) return false;
+	float Dist = FVector::Distance(GetActorLocation(), LastKnownPlayerPos);
+	if (Dist < 100.f) return true; // arrived
+	AIC->MoveToLocation(LastKnownPlayerPos, 80.f);
+	return false;
+}
+
+void ABehaviacAINPC::JS_FaceTarget()
+{
+	if (!TargetPlayer) return;
+	FVector Dir = (TargetPlayer->GetActorLocation() - GetActorLocation()).GetSafeNormal();
+	FRotator LookAt = Dir.Rotation();
+	LookAt.Pitch = 0.f;
+	LookAt.Roll = 0.f;
+	SetActorRotation(LookAt);
+}
+
+void ABehaviacAINPC::JS_MoveToPost()
+{
+	AAIController* AIC = Cast<AAIController>(GetController());
+	if (AIC) AIC->MoveToLocation(GuardCenter, 80.f);
+}
+
 // ============================================================
 // JS dispatch bridge
 // ============================================================
