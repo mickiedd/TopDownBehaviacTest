@@ -176,6 +176,54 @@ void UJSAIInterface::LookAround()
     GetOwner()->SetActorRotation(Current);
 }
 
+// ── Goofy actions ─────────────────────────────────────────────────────────────
+
+void UJSAIInterface::Jump()
+{
+    if (ACharacter* Char = Cast<ACharacter>(GetOwner()))
+        Char->Jump();
+}
+
+void UJSAIInterface::Crouch()
+{
+    if (ACharacter* Char = Cast<ACharacter>(GetOwner()))
+        Char->Crouch();
+}
+
+void UJSAIInterface::UnCrouch()
+{
+    if (ACharacter* Char = Cast<ACharacter>(GetOwner()))
+        Char->UnCrouch();
+}
+
+void UJSAIInterface::LaunchUp(float ZForce)
+{
+    if (ACharacter* Char = Cast<ACharacter>(GetOwner()))
+        Char->LaunchCharacter(FVector(0, 0, ZForce), false, true);
+}
+
+void UJSAIInterface::Spin(float Degrees)
+{
+    if (!GetOwner()) return;
+    FRotator R = GetOwner()->GetActorRotation();
+    R.Yaw += Degrees;
+    GetOwner()->SetActorRotation(R);
+}
+
+void UJSAIInterface::Dash(float Force)
+{
+    ACharacter* Char = Cast<ACharacter>(GetOwner());
+    if (!Char) return;
+    FVector Dir = Char->GetActorForwardVector();
+    Char->LaunchCharacter(Dir * Force, true, false);
+}
+
+void UJSAIInterface::SetSpeedRaw(float Speed)
+{
+    if (UCharacterMovementComponent* MC = GetMovement())
+        MC->MaxWalkSpeed = Speed;
+}
+
 // ── State ─────────────────────────────────────────────────────────────────────
 
 void UJSAIInterface::SetAIState(const FString& NewState)

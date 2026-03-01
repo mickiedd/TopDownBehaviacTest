@@ -1,29 +1,121 @@
-// npc_logic.ts — Full NPC behavior logic
-// Compiled to Content/JavaScript/npc_logic.js by tsc.
-//
-// Argv injected by UPuertsNPCComponent:
-//   npcSelf     → ABehaviacAINPC (actor identity)
-//   btBridge → UPuertsNPCComponent (BT dispatch delegate + SetBTResult)
-//   ai       → UJSAIInterface (all movement/sensor/state primitives)
+// npc_logic.ts — The Idiot Brain™
+// This NPC is technically functional but deeply unhinged.
 
+declare function setInterval(fn: () => void, ms: number): any;
+declare function setTimeout(fn: () => void, ms: number): any;
 
-const npcSelf: any = puerts.argv.getByName("npcSelf");
+const npcSelf: any  = puerts.argv.getByName("self");
 const btBridge: any = puerts.argv.getByName("btBridge");
 const ai: any       = puerts.argv.getByName("ai");
 
 if (!npcSelf || !btBridge || !ai) {
-    console.error(`[npc_logic] ERROR: missing argv — npcSelf:${!!npcSelf} btBridge:${!!btBridge} ai:${!!ai}`);
+    console.error(`[npc_logic] ERROR: missing argv — self:${!!npcSelf} btBridge:${!!btBridge} ai:${!!ai}`);
 } else {
     const name: string = String(npcSelf.GetName());
-    console.log(`[npc_logic] ✅ Loaded for: ${name}`);
-    console.log(`[npc_logic] 📋 DetectionRadius:${ai.DetectionRadius} WalkSpeed:${ai.WalkSpeed} RunSpeed:${ai.RunSpeed} AttackRange:${ai.AttackRange} CombatRange:${ai.CombatRange} GuardRadius:${ai.GuardRadius}`);
+    console.log(`[npc_logic] 🧠 Idiot Brain™ online for: ${name}`);
 
     // ── BT result constants ──────────────────────────────────────────────────
     const Running = 0;
     const Success = 1;
     const Failure = 2;
 
-    // ── Action handlers ──────────────────────────────────────────────────────
+    // ── Goofy state ──────────────────────────────────────────────────────────
+    let panicMode      = false;
+    let spinCount      = 0;
+    let crouchTimer    = 0;
+    let isCrouching    = false;
+    let lastJumpTime   = 0;
+    let sprintBurst    = false;
+    let tauntCooldown  = 0;
+    let now            = () => Date.now();
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    function rand(min: number, max: number): number {
+        return min + Math.random() * (max - min);
+    }
+
+    function chance(pct: number): boolean {
+        return Math.random() < pct;
+    }
+
+    // ── Goofy modifiers — fire-and-forget nonsense layered on top of BT ──────
+    // These run independently of the BT on a dumb timer.
+
+    setInterval(() => {
+        const dist = ai.GetDistanceToPlayer();
+        const state = String(ai.GetAIState());
+
+        // Random panic jump when player is close
+        if (dist > 0 && dist < 300 && chance(0.4)) {
+            console.log(`[${name}] 😱 PANIC JUMP`);
+            ai.LaunchUp(rand(400, 800));
+            lastJumpTime = now();
+        }
+
+        // Random crouch/uncrouch cycle
+        if (chance(0.25)) {
+            if (!isCrouching) {
+                console.log(`[${name}] 🦆 Crouching randomly`);
+                ai.Crouch();
+                isCrouching = true;
+                crouchTimer = now();
+            }
+        }
+        if (isCrouching && now() - crouchTimer > rand(500, 2000)) {
+            ai.UnCrouch();
+            isCrouching = false;
+        }
+
+        // Spin when idle/patrolling (existential crisis)
+        if (state === "Patrol" && chance(0.2)) {
+            spinCount = Math.floor(rand(2, 6));
+            console.log(`[${name}] 🌀 Spinning ${spinCount} times (for no reason)`);
+        }
+
+        // Random sprint burst
+        if (state === "Chase" && chance(0.3) && !sprintBurst) {
+            console.log(`[${name}] 💨 SPRINT BURST`);
+            ai.SetSpeedRaw(rand(900, 1400));
+            sprintBurst = true;
+            setTimeout(() => {
+                ai.SetSpeed(ai.RunSpeed);
+                sprintBurst = false;
+            }, rand(400, 900));
+        }
+
+        // Panic mode: triggered when health is low (or just randomly, because idiot)
+        if (!panicMode && chance(0.05)) {
+            panicMode = true;
+            console.log(`[${name}] 🆘 ENTERING PANIC MODE (randomly)`);
+            setTimeout(() => {
+                panicMode = false;
+                console.log(`[${name}] 😌 Panic over. Resuming idiocy.`);
+            }, rand(3000, 6000));
+        }
+
+        // Taunt when player is nearby (jump + face them + spin)
+        if (dist > 0 && dist < 500 && now() - tauntCooldown > 8000 && chance(0.15)) {
+            tauntCooldown = now();
+            console.log(`[${name}] 💃 TAUNT: You can't catch me!`);
+            ai.FaceTarget();
+            ai.LaunchUp(300);
+            setTimeout(() => ai.Spin(180), 300);
+            setTimeout(() => ai.Spin(180), 600);
+        }
+
+    }, 500);
+
+    // Spin executor — applies pending spins every 200ms
+    setInterval(() => {
+        if (spinCount > 0) {
+            ai.Spin(72); // 5 spins = 360°
+            spinCount--;
+        }
+    }, 200);
+
+    // ── BT action handlers ───────────────────────────────────────────────────
+
     const handlers: Record<string, () => number> = {
 
         "UpdateAIState": (): number => {
@@ -38,7 +130,12 @@ if (!npcSelf || !btBridge || !ai) {
                 newState = "Combat";
                 ai.SetLastKnownPos();
             } else if (canSee && distToPlayer <= ai.DetectionRadius) {
-                newState = "Chase";
+                // In panic mode: occasionally runs AWAY instead of chasing
+                if (panicMode && chance(0.5)) {
+                    newState = "Flee";
+                } else {
+                    newState = "Chase";
+                }
                 ai.SetLastKnownPos();
             } else if (currentState === "Chase" || currentState === "Combat") {
                 newState = (distFromPost > ai.GuardRadius) ? "ReturnToPost" : "Investigate";
@@ -51,14 +148,35 @@ if (!npcSelf || !btBridge || !ai) {
         },
 
         "SetWalkSpeed": (): number => { ai.SetSpeed(ai.WalkSpeed); return Success; },
-        "SetRunSpeed":  (): number => { ai.SetSpeed(ai.RunSpeed);  return Success; },
+        "SetRunSpeed":  (): number => {
+            // Idiot: sometimes sets the wrong speed
+            if (chance(0.1)) {
+                console.log(`[${name}] 🤪 SetRunSpeed: set walk speed by mistake`);
+                ai.SetSpeed(ai.WalkSpeed * 0.5);
+            } else {
+                ai.SetSpeed(ai.RunSpeed);
+            }
+            return Success;
+        },
 
         "FindPlayer": (): number => {
             if (ai.CanSeePlayer()) { ai.SetLastKnownPos(); return Success; }
+            // Idiot: spin while searching
+            if (chance(0.4)) ai.Spin(rand(30, 90));
             return Failure;
         },
 
-        "Patrol": (): number => { ai.Patrol(); return Running; },
+        "Patrol": (): number => {
+            ai.Patrol();
+            // Idiot: randomly crouch-walks during patrol
+            if (chance(0.05)) {
+                console.log(`[${name}] 🦆 Crouch-walking on patrol`);
+                ai.Crouch();
+                isCrouching = true;
+                crouchTimer = now();
+            }
+            return Running;
+        },
 
         "MoveToTarget": (): number => {
             const dist: number = ai.GetDistanceToTarget();
@@ -69,28 +187,71 @@ if (!npcSelf || !btBridge || !ai) {
         },
 
         "ChasePlayer": (): number => {
-            if (String(ai.GetAIState()) !== "Chase") { ai.StopMovement(); return Failure; }
+            const state = String(ai.GetAIState());
+            if (state === "Flee") {
+                // Run AWAY — dash in opposite direction
+                console.log(`[${name}] 🏃 FLEEING like a coward`);
+                ai.Spin(180);
+                ai.SetSpeedRaw(ai.RunSpeed * 1.5);
+                ai.Dash(800);
+                return Running;
+            }
+            if (state !== "Chase") { ai.StopMovement(); return Failure; }
+
             const dist: number = ai.GetDistanceToTarget();
             if (dist < 0) return Failure;
             if (dist <= ai.AttackRange) return Success;
+
+            // Panic chase: random jumps while running
+            if (panicMode && chance(0.2)) {
+                console.log(`[${name}] 😱 Panic-jumping while chasing`);
+                ai.LaunchUp(300);
+            }
+
             ai.MoveToTarget();
             return Running;
         },
 
         "AttackPlayer": (): number => {
-            if (String(ai.GetAIState()) !== "Combat") return Failure;
+            const state = String(ai.GetAIState());
+            if (state !== "Combat") return Failure;
             const dist: number = ai.GetDistanceToTarget();
             if (dist < 0 || dist > ai.CombatRange) return Failure;
-            console.log(`[npc_logic][${name}] ⚔️ HIT! dist=${Math.round(dist)}`);
+
+            // Idiot attack: sometimes jumps instead of attacking
+            if (chance(0.25)) {
+                console.log(`[${name}] 🤦 AttackPlayer: jumped instead of attacking`);
+                ai.LaunchUp(500);
+                return Running; // missed, try again
+            }
+
+            console.log(`[${name}] ⚔️ HIT! dist=${Math.round(dist)}`);
+            // Celebratory spin after landing a hit
+            if (chance(0.5)) {
+                setTimeout(() => {
+                    console.log(`[${name}] 🎉 Victory spin!`);
+                    ai.Spin(360);
+                }, 200);
+            }
             return Success;
         },
 
         "FaceTarget":   (): number => { ai.FaceTarget();   return Success; },
         "StopMovement": (): number => { ai.StopMovement(); return Success; },
 
-        "MoveToLastKnownPos": (): number => ai.MoveToLastKnownPos() ? Success : Running,
+        "MoveToLastKnownPos": (): number => {
+            const arrived = ai.MoveToLastKnownPos();
+            // Idiot: sometimes spins while walking to last known pos
+            if (chance(0.1)) ai.Spin(rand(20, 60));
+            return arrived ? Success : Running;
+        },
 
-        "LookAround": (): number => { ai.LookAround(); return Success; },
+        "LookAround": (): number => {
+            ai.LookAround();
+            // Extra: random extra spins when looking around
+            if (chance(0.3)) ai.Spin(rand(45, 135));
+            return Success;
+        },
 
         "ClearLastKnownPos": (): number => {
             ai.ClearLastKnownPos();
@@ -99,7 +260,12 @@ if (!npcSelf || !btBridge || !ai) {
         },
 
         "ReturnToPost": (): number => {
-            if (ai.GetDistanceFromPost() < 100) { ai.SetAIState("Patrol"); return Success; }
+            if (ai.GetDistanceFromPost() < 100) {
+                ai.SetAIState("Patrol");
+                // Return home celebration: little jump
+                if (chance(0.6)) ai.LaunchUp(200);
+                return Success;
+            }
             ai.SetSpeed(ai.WalkSpeed);
             ai.MoveToPost();
             return Running;
@@ -116,7 +282,7 @@ if (!npcSelf || !btBridge || !ai) {
                 btBridge.SetBTResult(Failure);
             }
         }
-        // No handler → SetBTResult not called → sentinel preserved → C++ fallback
+        // No handler → sentinel → C++ fallback
     });
 
     console.log(`[npc_logic] ✅ Handlers: [${Object.keys(handlers).join(", ")}]`);
@@ -126,12 +292,13 @@ if (!npcSelf || !btBridge || !ai) {
     setInterval(() => {
         try {
             tick++;
-            const state: string = String(ai.GetAIState());
-            const px    = Math.round(ai.GetLocationX());
-            const py    = Math.round(ai.GetLocationY());
-            const speed = Math.round(ai.GetSpeedXY());
-            const tStr  = ai.TargetActor ? String(ai.TargetActor.GetName()) : "none";
-            console.log(`[npc_logic][${name}] #${tick} | ${state} | (${px},${py}) | spd:${speed} | tgt:${tStr}`);
+            const state  = String(ai.GetAIState());
+            const px     = Math.round(ai.GetLocationX());
+            const py     = Math.round(ai.GetLocationY());
+            const speed  = Math.round(ai.GetSpeedXY());
+            const tStr   = ai.TargetActor ? String(ai.TargetActor.GetName()) : "none";
+            const mood   = panicMode ? "😱PANIC" : isCrouching ? "🦆DUCK" : "😐normal";
+            console.log(`[npc_logic][${name}] #${tick} | ${state} | (${px},${py}) | spd:${speed} | tgt:${tStr} | ${mood}`);
         } catch (e) { /* swallow */ }
     }, 3000);
 }

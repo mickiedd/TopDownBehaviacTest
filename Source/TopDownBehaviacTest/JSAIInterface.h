@@ -113,6 +113,33 @@ public:
     UFUNCTION(BlueprintCallable, Category = "AI|JS|Movement")
     void LookAround();
 
+    // ── Goofy actions ────────────────────────────────────────────────────────
+
+    UFUNCTION(BlueprintCallable, Category = "AI|JS|Goofy")
+    void Jump();
+
+    UFUNCTION(BlueprintCallable, Category = "AI|JS|Goofy")
+    void Crouch();
+
+    UFUNCTION(BlueprintCallable, Category = "AI|JS|Goofy")
+    void UnCrouch();
+
+    /** Launch character upward with given Z force. */
+    UFUNCTION(BlueprintCallable, Category = "AI|JS|Goofy")
+    void LaunchUp(float ZForce = 600.f);
+
+    /** Spin in place — adds Degrees to current yaw. */
+    UFUNCTION(BlueprintCallable, Category = "AI|JS|Goofy")
+    void Spin(float Degrees = 45.f);
+
+    /** Dash in current facing direction. */
+    UFUNCTION(BlueprintCallable, Category = "AI|JS|Goofy")
+    void Dash(float Force = 1200.f);
+
+    /** Direct speed setter (for sprint overrides). */
+    UFUNCTION(BlueprintCallable, Category = "AI|JS|Goofy")
+    void SetSpeedRaw(float Speed);
+
     // ── Blackboard / state ───────────────────────────────────────────────────
 
     /** Set a Behaviac blackboard string property. */
