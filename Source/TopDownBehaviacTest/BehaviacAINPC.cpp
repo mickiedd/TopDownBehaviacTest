@@ -419,14 +419,18 @@ void ABehaviacAINPC::JS_LookAround()
 
 EBehaviacStatus ABehaviacAINPC::DispatchOrRun(const FString& ActionName, TFunction<EBehaviacStatus()> CppImpl)
 {
-	if (PuertsNPC && PuertsNPC->OnBTAction.IsBound())
+	if (PuertsNPC)
 	{
 		int32 Result = PuertsNPC->DispatchBTAction(ActionName);
-		switch (Result)
+		// INT32_MIN = JS did not handle it → fall through to C++
+		if (Result != INT32_MIN)
 		{
-			case 1:  return EBehaviacStatus::Success;
-			case 2:  return EBehaviacStatus::Failure;
-			default: return EBehaviacStatus::Running;
+			switch (Result)
+			{
+				case 1:  return EBehaviacStatus::Success;
+				case 2:  return EBehaviacStatus::Failure;
+				default: return EBehaviacStatus::Running;
+			}
 		}
 	}
 	return CppImpl();

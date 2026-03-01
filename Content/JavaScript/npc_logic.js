@@ -85,12 +85,10 @@ if (!self || !btBridge) {
                 btBridge.SetBTResult(result);
             } catch(e) {
                 console.error(`[npc_logic][${name}] ❌ Handler error for ${actionName}: ${e}`);
-                btBridge.SetBTResult(Failure);
+                btBridge.SetBTResult(2); // Failure
             }
         }
-        // If no handler → SetBTResult not called → PendingResult stays 0 (Running)
-        // → C++ DispatchOrRun WON'T reach here (OnBTAction.IsBound() is true for all actions)
-        // So: explicitly fall back to Running for unhandled actions
+        // No handler → do NOT call SetBTResult → sentinel stays → C++ fallback runs
     });
 
     console.log(`[npc_logic] ✅ BT handler bound. Handlers: [${Object.keys(handlers).join(", ")}]`);

@@ -68,5 +68,8 @@ protected:
 
 private:
     TUniquePtr<PUERTS_NAMESPACE::FJsEnv> JsEnv;
-    int32 PendingResult = 0;
+
+    // INT32_MIN = sentinel: JS did not handle this action → fall through to C++
+    static constexpr int32 JS_NOT_HANDLED = INT32_MIN;
+    int32 PendingResult = JS_NOT_HANDLED;
 };

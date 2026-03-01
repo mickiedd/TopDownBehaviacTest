@@ -52,11 +52,10 @@ int32 UPuertsNPCComponent::DispatchBTAction(const FString& ActionName)
 {
     if (!OnBTAction.IsBound())
     {
-        // No JS handler — return Running so BT keeps ticking
-        return 0;
+        return JS_NOT_HANDLED;
     }
 
-    PendingResult = 0; // default: Running
+    PendingResult = JS_NOT_HANDLED; // reset sentinel before firing
     OnBTAction.Broadcast(ActionName);
-    return PendingResult;
+    return PendingResult; // JS_NOT_HANDLED if JS didn't call SetBTResult
 }
