@@ -18,6 +18,9 @@ ABehaviacAINPC::ABehaviacAINPC() : Super()
 	// to have full control over tick ordering. Leaving bAutoTick=true would double-tick every frame.
 	BehaviacAgent->bAutoTick = false;
 
+	// Create Puerts JS bridge component
+	PuertsNPC = CreateDefaultSubobject<UPuertsNPCComponent>(TEXT("PuertsNPC"));
+
 	// Default properties
 	DetectionRadius = 1000.0f;
 	WalkSpeed = 200.0f;
@@ -183,133 +186,142 @@ void ABehaviacAINPC::Tick(float DeltaTime)
 
 EBehaviacStatus ABehaviacAINPC::FindPlayer()
 {
-	// Find player pawn within detection radius
-	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
-	
-	if (!PlayerPawn)
+	return DispatchOrRun(TEXT("FindPlayer"), [this]() -> EBehaviacStatus
 	{
+		// Find player pawn within detection radius
+		APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+		
+		if (!PlayerPawn)
+		{
+			TargetPlayer = nullptr;
+			if (BehaviacAgent)
+			{
+				BehaviacAgent->SetPropertyValue(TEXT("HasTarget"), TEXT("false"));
+			}
+			return EBehaviacStatus::Failure;
+		}
+	
+		float Distance = FVector::Distance(GetActorLocation(), PlayerPawn->GetActorLocation());
+		
+		if (Distance <= DetectionRadius)
+		{
+			TargetPlayer = PlayerPawn;
+			if (BehaviacAgent)
+			{
+				BehaviacAgent->SetPropertyValue(TEXT("HasTarget"), TEXT("true"));
+			}
+			
+			return EBehaviacStatus::Success;
+		}
+	
+		// Player exists but out of range
 		TargetPlayer = nullptr;
 		if (BehaviacAgent)
 		{
 			BehaviacAgent->SetPropertyValue(TEXT("HasTarget"), TEXT("false"));
 		}
 		return EBehaviacStatus::Failure;
-	}
-
-	float Distance = FVector::Distance(GetActorLocation(), PlayerPawn->GetActorLocation());
-	
-	if (Distance <= DetectionRadius)
-	{
-		TargetPlayer = PlayerPawn;
-		if (BehaviacAgent)
-		{
-			BehaviacAgent->SetPropertyValue(TEXT("HasTarget"), TEXT("true"));
-		}
-		
-		return EBehaviacStatus::Success;
-	}
-
-	// Player exists but out of range
-	TargetPlayer = nullptr;
-	if (BehaviacAgent)
-	{
-		BehaviacAgent->SetPropertyValue(TEXT("HasTarget"), TEXT("false"));
-	}
-	return EBehaviacStatus::Failure;
+	});
 }
 
 EBehaviacStatus ABehaviacAINPC::MoveToTarget()
 {
-	if (!TargetPlayer)
+	return DispatchOrRun(TEXT("MoveToTarget"), [this]() -> EBehaviacStatus
 	{
-		UE_LOG(LogTemp, Warning, TEXT("⚠️ MoveToTarget: No target!"));
-		return EBehaviacStatus::Failure;
-	}
-
-	// Use AI controller to move
-	AAIController* AIController = Cast<AAIController>(GetController());
-	if (!AIController)
-	{
-		UE_LOG(LogTemp, Error, TEXT("❌ MoveToTarget: No AI Controller!"));
-		return EBehaviacStatus::Failure;
-	}
-
-	// Set speed based on distance
-	float Distance = FVector::Distance(GetActorLocation(), TargetPlayer->GetActorLocation());
-	if (Distance > DetectionRadius * 0.5f)
-	{
-		GetCharacterMovement()->MaxWalkSpeed = RunSpeed;
-		UE_LOG(LogTemp, Log, TEXT("🏃 MoveToTarget: RUNNING to player (distance: %.1f)"), Distance);
-	}
-	else
-	{
-		GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
-		UE_LOG(LogTemp, Log, TEXT("🚶 MoveToTarget: Walking to player (distance: %.1f)"), Distance);
-	}
-
-	// Move to target
-	EPathFollowingRequestResult::Type Result = AIController->MoveToActor(TargetPlayer, 50.0f);
-	
-	if (Result == EPathFollowingRequestResult::RequestSuccessful)
-	{
-		if (BehaviacAgent)
+		if (!TargetPlayer)
 		{
-			BehaviacAgent->SetPropertyValue(TEXT("State"), TEXT("Chase"));
+			UE_LOG(LogTemp, Warning, TEXT("⚠️ MoveToTarget: No target!"));
+			return EBehaviacStatus::Failure;
 		}
-		return EBehaviacStatus::Success;
-	}
 	
-	UE_LOG(LogTemp, Warning, TEXT("⚠️ MoveToTarget: Movement request failed! (No NavMesh?)"));
-	return EBehaviacStatus::Failure;
+		// Use AI controller to move
+		AAIController* AIController = Cast<AAIController>(GetController());
+		if (!AIController)
+		{
+			UE_LOG(LogTemp, Error, TEXT("❌ MoveToTarget: No AI Controller!"));
+			return EBehaviacStatus::Failure;
+		}
+	
+		// Set speed based on distance
+		float Distance = FVector::Distance(GetActorLocation(), TargetPlayer->GetActorLocation());
+		if (Distance > DetectionRadius * 0.5f)
+		{
+			GetCharacterMovement()->MaxWalkSpeed = RunSpeed;
+			UE_LOG(LogTemp, Log, TEXT("🏃 MoveToTarget: RUNNING to player (distance: %.1f)"), Distance);
+		}
+		else
+		{
+			GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
+			UE_LOG(LogTemp, Log, TEXT("🚶 MoveToTarget: Walking to player (distance: %.1f)"), Distance);
+		}
+	
+		// Move to target
+		EPathFollowingRequestResult::Type Result = AIController->MoveToActor(TargetPlayer, 50.0f);
+		
+		if (Result == EPathFollowingRequestResult::RequestSuccessful)
+		{
+			if (BehaviacAgent)
+			{
+				BehaviacAgent->SetPropertyValue(TEXT("State"), TEXT("Chase"));
+			}
+			return EBehaviacStatus::Success;
+		}
+		
+		UE_LOG(LogTemp, Warning, TEXT("⚠️ MoveToTarget: Movement request failed! (No NavMesh?)"));
+		return EBehaviacStatus::Failure;
+	});
 }
 
 EBehaviacStatus ABehaviacAINPC::Patrol()
 {
-	if (PatrolPoints.Num() == 0)
+	return DispatchOrRun(TEXT("Patrol"), [this]() -> EBehaviacStatus
 	{
-		UE_LOG(LogTemp, Warning, TEXT("⚠️ Patrol: No patrol points!"));
-		return EBehaviacStatus::Failure;
-	}
-
-	AAIController* AIController = Cast<AAIController>(GetController());
-	if (!AIController)
-	{
-		UE_LOG(LogTemp, Error, TEXT("❌ Patrol: No AI Controller!"));
-		return EBehaviacStatus::Failure;
-	}
-
-	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
-
-	FVector TargetPoint = PatrolPoints[CurrentPatrolIndex];
-	float Distance = FVector::Distance(GetActorLocation(), TargetPoint);
-
-	// Reached current waypoint — advance index and issue move to the next one
-	if (Distance < 100.0f)
-	{
-		CurrentPatrolIndex = (CurrentPatrolIndex + 1) % PatrolPoints.Num();
-		TargetPoint = PatrolPoints[CurrentPatrolIndex];
-		UE_LOG(LogTemp, Log, TEXT("✅ Patrol: Reached waypoint, moving to point %d at %s"),
-			CurrentPatrolIndex, *TargetPoint.ToString());
-		AIController->MoveToLocation(TargetPoint, 50.0f);
+		if (PatrolPoints.Num() == 0)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("⚠️ Patrol: No patrol points!"));
+			return EBehaviacStatus::Failure;
+		}
+	
+		AAIController* AIController = Cast<AAIController>(GetController());
+		if (!AIController)
+		{
+			UE_LOG(LogTemp, Error, TEXT("❌ Patrol: No AI Controller!"));
+			return EBehaviacStatus::Failure;
+		}
+	
+		GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
+	
+		FVector TargetPoint = PatrolPoints[CurrentPatrolIndex];
+		float Distance = FVector::Distance(GetActorLocation(), TargetPoint);
+	
+		// Reached current waypoint — advance index and issue move to the next one
+		if (Distance < 100.0f)
+		{
+			CurrentPatrolIndex = (CurrentPatrolIndex + 1) % PatrolPoints.Num();
+			TargetPoint = PatrolPoints[CurrentPatrolIndex];
+			UE_LOG(LogTemp, Log, TEXT("✅ Patrol: Reached waypoint, moving to point %d at %s"),
+				CurrentPatrolIndex, *TargetPoint.ToString());
+			AIController->MoveToLocation(TargetPoint, 50.0f);
+			return EBehaviacStatus::Running;
+		}
+	
+		// If the controller is already navigating, don't interrupt it — just stay Running
+		UPathFollowingComponent* PF = AIController->GetPathFollowingComponent();
+		if (PF && PF->GetStatus() == EPathFollowingStatus::Moving)
+		{
+			return EBehaviacStatus::Running;
+		}
+	
+		// Not moving (idle, stopped after chase/return, or first call) — issue move
+		EPathFollowingRequestResult::Type Result = AIController->MoveToLocation(TargetPoint, 50.0f);
+		if (Result == EPathFollowingRequestResult::Failed)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("⚠️ Patrol: MoveToLocation failed (no NavMesh?)"));
+			return EBehaviacStatus::Failure;
+		}
+		UE_LOG(LogTemp, Log, TEXT("🚶 Patrol: Issued move to point %d at %s"), CurrentPatrolIndex, *TargetPoint.ToString());
 		return EBehaviacStatus::Running;
-	}
-
-	// If the controller is already navigating, don't interrupt it — just stay Running
-	UPathFollowingComponent* PF = AIController->GetPathFollowingComponent();
-	if (PF && PF->GetStatus() == EPathFollowingStatus::Moving)
-	{
-		return EBehaviacStatus::Running;
-	}
-
-	// Not moving (idle, stopped after chase/return, or first call) — issue move
-	EPathFollowingRequestResult::Type Result = AIController->MoveToLocation(TargetPoint, 50.0f);
-	if (Result == EPathFollowingRequestResult::Failed)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("⚠️ Patrol: MoveToLocation failed (no NavMesh?)"));
-		return EBehaviacStatus::Failure;
-	}
-	UE_LOG(LogTemp, Log, TEXT("🚶 Patrol: Issued move to point %d at %s"), CurrentPatrolIndex, *TargetPoint.ToString());
-	return EBehaviacStatus::Running;
+	});
 }
 
 void ABehaviacAINPC::Idle()
@@ -352,6 +364,72 @@ FString ABehaviacAINPC::GetBehaviacProperty(const FString& Key)
 		return BehaviacAgent->GetPropertyValue(Key);
 	}
 	return FString();
+}
+
+// ============================================================
+// JS primitive helpers (avoid FVector across Puerts boundary)
+// ============================================================
+
+float ABehaviacAINPC::GetDistanceToTarget() const
+{
+	if (!TargetPlayer) return -1.f;
+	return FVector::Distance(GetActorLocation(), TargetPlayer->GetActorLocation());
+}
+
+void ABehaviacAINPC::JS_MoveToTarget()
+{
+	if (!TargetPlayer) return;
+	AAIController* AIC = Cast<AAIController>(GetController());
+	if (AIC) AIC->MoveToActor(TargetPlayer, AttackRange * 0.8f);
+}
+
+void ABehaviacAINPC::JS_Patrol()
+{
+	// Advance to next patrol point
+	if (PatrolPoints.Num() == 0) return;
+	AAIController* AIC = Cast<AAIController>(GetController());
+	if (!AIC) return;
+	FVector Target = PatrolPoints[CurrentPatrolIndex % PatrolPoints.Num()];
+	float Dist = FVector::Distance(GetActorLocation(), Target);
+	if (Dist < 100.f)
+	{
+		CurrentPatrolIndex = (CurrentPatrolIndex + 1) % PatrolPoints.Num();
+		Target = PatrolPoints[CurrentPatrolIndex];
+	}
+	AIC->MoveToLocation(Target, 80.f);
+}
+
+void ABehaviacAINPC::JS_StopMovement()
+{
+	AAIController* AIC = Cast<AAIController>(GetController());
+	if (AIC) AIC->StopMovement();
+}
+
+void ABehaviacAINPC::JS_LookAround()
+{
+	FRotator Current = GetActorRotation();
+	Current.Yaw += 45.0f * LookAroundDir;
+	LookAroundDir = -LookAroundDir;
+	SetActorRotation(Current);
+}
+
+// ============================================================
+// JS dispatch bridge
+// ============================================================
+
+EBehaviacStatus ABehaviacAINPC::DispatchOrRun(const FString& ActionName, TFunction<EBehaviacStatus()> CppImpl)
+{
+	if (PuertsNPC && PuertsNPC->OnBTAction.IsBound())
+	{
+		int32 Result = PuertsNPC->DispatchBTAction(ActionName);
+		switch (Result)
+		{
+			case 1:  return EBehaviacStatus::Success;
+			case 2:  return EBehaviacStatus::Failure;
+			default: return EBehaviacStatus::Running;
+		}
+	}
+	return CppImpl();
 }
 
 // ============================================================
@@ -449,177 +527,207 @@ EBehaviacStatus ABehaviacAINPC::UpdateAIState()
 
 EBehaviacStatus ABehaviacAINPC::ChasePlayer()
 {
-	// Bail out if state has changed — lets SelectorLoop re-evaluate
-	if (BehaviacAgent && BehaviacAgent->GetPropertyValue(TEXT("AIState")) != TEXT("Chase"))
+	return DispatchOrRun(TEXT("ChasePlayer"), [this]() -> EBehaviacStatus
 	{
-		UE_LOG(LogTemp, Warning, TEXT("🏃 ChasePlayer: AIState no longer Chase, stopping"));
-		AAIController* AIC = Cast<AAIController>(GetController());
-		if (AIC) AIC->StopMovement();
-		return EBehaviacStatus::Failure;
-	}
-
-	if (!TargetPlayer)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("🏃 ChasePlayer: No target"));
-		return EBehaviacStatus::Failure;
-	}
-
-	AAIController* AIController = Cast<AAIController>(GetController());
-	if (!AIController) return EBehaviacStatus::Failure;
-
-	float Dist = FVector::Distance(GetActorLocation(), TargetPlayer->GetActorLocation());
-	if (Dist <= AttackRange)
-	{
-		UE_LOG(LogTemp, Log, TEXT("🏃 ChasePlayer: Reached attack range"));
-		return EBehaviacStatus::Success;
-	}
-
-	AIController->MoveToActor(TargetPlayer, AttackRange * 0.8f);
-	UE_LOG(LogTemp, Log, TEXT("🏃 ChasePlayer: Sprinting (dist=%.0f)"), Dist);
-	return EBehaviacStatus::Running;
+		// Bail out if state has changed — lets SelectorLoop re-evaluate
+		if (BehaviacAgent && BehaviacAgent->GetPropertyValue(TEXT("AIState")) != TEXT("Chase"))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("🏃 ChasePlayer: AIState no longer Chase, stopping"));
+			AAIController* AIC = Cast<AAIController>(GetController());
+			if (AIC) AIC->StopMovement();
+			return EBehaviacStatus::Failure;
+		}
+	
+		if (!TargetPlayer)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("🏃 ChasePlayer: No target"));
+			return EBehaviacStatus::Failure;
+		}
+	
+		AAIController* AIController = Cast<AAIController>(GetController());
+		if (!AIController) return EBehaviacStatus::Failure;
+	
+		float Dist = FVector::Distance(GetActorLocation(), TargetPlayer->GetActorLocation());
+		if (Dist <= AttackRange)
+		{
+			UE_LOG(LogTemp, Log, TEXT("🏃 ChasePlayer: Reached attack range"));
+			return EBehaviacStatus::Success;
+		}
+	
+		AIController->MoveToActor(TargetPlayer, AttackRange * 0.8f);
+		UE_LOG(LogTemp, Log, TEXT("🏃 ChasePlayer: Sprinting (dist=%.0f)"), Dist);
+		return EBehaviacStatus::Running;
+	});
 }
 
 EBehaviacStatus ABehaviacAINPC::AttackPlayer()
 {
-	// Bail out if state changed
-	if (BehaviacAgent && BehaviacAgent->GetPropertyValue(TEXT("AIState")) != TEXT("Combat"))
+	return DispatchOrRun(TEXT("AttackPlayer"), [this]() -> EBehaviacStatus
 	{
-		return EBehaviacStatus::Failure;
-	}
-
-	if (!TargetPlayer)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("⚔️ AttackPlayer: No target!"));
-		return EBehaviacStatus::Failure;
-	}
-
-	float Dist = FVector::Distance(GetActorLocation(), TargetPlayer->GetActorLocation());
-	if (Dist > CombatRange)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("⚔️ AttackPlayer: Target out of combat range (%.0f > %.0f)"), Dist, CombatRange);
-		return EBehaviacStatus::Failure;
-	}
-
-	// TODO: apply damage via damage system
-	UE_LOG(LogTemp, Warning, TEXT("⚔️ AttackPlayer: HIT! (dist=%.0f)"), Dist);
-	return EBehaviacStatus::Success;
+		// Bail out if state changed
+		if (BehaviacAgent && BehaviacAgent->GetPropertyValue(TEXT("AIState")) != TEXT("Combat"))
+		{
+			return EBehaviacStatus::Failure;
+		}
+	
+		if (!TargetPlayer)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("⚔️ AttackPlayer: No target!"));
+			return EBehaviacStatus::Failure;
+		}
+	
+		float Dist = FVector::Distance(GetActorLocation(), TargetPlayer->GetActorLocation());
+		if (Dist > CombatRange)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("⚔️ AttackPlayer: Target out of combat range (%.0f > %.0f)"), Dist, CombatRange);
+			return EBehaviacStatus::Failure;
+		}
+	
+		// TODO: apply damage via damage system
+		UE_LOG(LogTemp, Warning, TEXT("⚔️ AttackPlayer: HIT! (dist=%.0f)"), Dist);
+		return EBehaviacStatus::Success;
+	});
 }
 
 EBehaviacStatus ABehaviacAINPC::StopMovement()
 {
-	AAIController* AIController = Cast<AAIController>(GetController());
-	if (AIController)
+	return DispatchOrRun(TEXT("StopMovement"), [this]() -> EBehaviacStatus
 	{
-		AIController->StopMovement();
-	}
-	return EBehaviacStatus::Success;
+		AAIController* AIController = Cast<AAIController>(GetController());
+		if (AIController)
+		{
+			AIController->StopMovement();
+		}
+		return EBehaviacStatus::Success;
+	});
 }
 
 EBehaviacStatus ABehaviacAINPC::FaceTarget()
 {
-	if (!TargetPlayer) return EBehaviacStatus::Failure;
-
-	FVector Dir = (TargetPlayer->GetActorLocation() - GetActorLocation()).GetSafeNormal();
-	FRotator LookAt = Dir.Rotation();
-	LookAt.Pitch = 0.f;
-	LookAt.Roll  = 0.f;
-	SetActorRotation(LookAt);
-	return EBehaviacStatus::Success;
+	return DispatchOrRun(TEXT("FaceTarget"), [this]() -> EBehaviacStatus
+	{
+		if (!TargetPlayer) return EBehaviacStatus::Failure;
+	
+		FVector Dir = (TargetPlayer->GetActorLocation() - GetActorLocation()).GetSafeNormal();
+		FRotator LookAt = Dir.Rotation();
+		LookAt.Pitch = 0.f;
+		LookAt.Roll  = 0.f;
+		SetActorRotation(LookAt);
+		return EBehaviacStatus::Success;
+	});
 }
 
 EBehaviacStatus ABehaviacAINPC::SetWalkSpeed()
 {
-	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
-	return EBehaviacStatus::Success;
+	return DispatchOrRun(TEXT("SetWalkSpeed"), [this]() -> EBehaviacStatus
+	{
+		GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
+		return EBehaviacStatus::Success;
+	});
 }
 
 EBehaviacStatus ABehaviacAINPC::SetRunSpeed()
 {
-	GetCharacterMovement()->MaxWalkSpeed = RunSpeed;
-	return EBehaviacStatus::Success;
+	return DispatchOrRun(TEXT("SetRunSpeed"), [this]() -> EBehaviacStatus
+	{
+		GetCharacterMovement()->MaxWalkSpeed = RunSpeed;
+		return EBehaviacStatus::Success;
+	});
 }
 
 EBehaviacStatus ABehaviacAINPC::MoveToLastKnownPos()
 {
-	if (!bHasLastKnownPos)
+	return DispatchOrRun(TEXT("MoveToLastKnownPos"), [this]() -> EBehaviacStatus
 	{
-		UE_LOG(LogTemp, Warning, TEXT("🔍 MoveToLastKnownPos: No last known position"));
+		if (!bHasLastKnownPos)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("🔍 MoveToLastKnownPos: No last known position"));
+			return EBehaviacStatus::Failure;
+		}
+	
+		AAIController* AIController = Cast<AAIController>(GetController());
+		if (!AIController) return EBehaviacStatus::Failure;
+	
+		float Dist = FVector::Distance(GetActorLocation(), LastKnownPlayerPos);
+		if (Dist < 100.0f)
+		{
+			UE_LOG(LogTemp, Log, TEXT("🔍 MoveToLastKnownPos: Arrived at last known position"));
+			return EBehaviacStatus::Success;
+		}
+	
+		EPathFollowingRequestResult::Type Result = AIController->MoveToLocation(LastKnownPlayerPos, 80.0f);
+		if (Result == EPathFollowingRequestResult::RequestSuccessful ||
+			Result == EPathFollowingRequestResult::AlreadyAtGoal)
+		{
+			UE_LOG(LogTemp, Log, TEXT("🔍 MoveToLastKnownPos: Moving (dist=%.0f)"), Dist);
+			return EBehaviacStatus::Success;
+		}
+	
 		return EBehaviacStatus::Failure;
-	}
-
-	AAIController* AIController = Cast<AAIController>(GetController());
-	if (!AIController) return EBehaviacStatus::Failure;
-
-	float Dist = FVector::Distance(GetActorLocation(), LastKnownPlayerPos);
-	if (Dist < 100.0f)
-	{
-		UE_LOG(LogTemp, Log, TEXT("🔍 MoveToLastKnownPos: Arrived at last known position"));
-		return EBehaviacStatus::Success;
-	}
-
-	EPathFollowingRequestResult::Type Result = AIController->MoveToLocation(LastKnownPlayerPos, 80.0f);
-	if (Result == EPathFollowingRequestResult::RequestSuccessful ||
-		Result == EPathFollowingRequestResult::AlreadyAtGoal)
-	{
-		UE_LOG(LogTemp, Log, TEXT("🔍 MoveToLastKnownPos: Moving (dist=%.0f)"), Dist);
-		return EBehaviacStatus::Success;
-	}
-
-	return EBehaviacStatus::Failure;
+	});
 }
 
 EBehaviacStatus ABehaviacAINPC::LookAround()
 {
-	// Rotate 45° in the current direction, then flip for next call
-	FRotator Current = GetActorRotation();
-	Current.Yaw += 45.0f * LookAroundDir;
-	LookAroundDir = -LookAroundDir;  // Alternate left/right each call
-	SetActorRotation(Current);
-
-	UE_LOG(LogTemp, Log, TEXT("👀 LookAround: Yaw=%.1f"), Current.Yaw);
-	return EBehaviacStatus::Success;
+	return DispatchOrRun(TEXT("LookAround"), [this]() -> EBehaviacStatus
+	{
+		// Rotate 45° in the current direction, then flip for next call
+		FRotator Current = GetActorRotation();
+		Current.Yaw += 45.0f * LookAroundDir;
+		LookAroundDir = -LookAroundDir;  // Alternate left/right each call
+		SetActorRotation(Current);
+	
+		UE_LOG(LogTemp, Log, TEXT("👀 LookAround: Yaw=%.1f"), Current.Yaw);
+		return EBehaviacStatus::Success;
+	});
 }
 
 EBehaviacStatus ABehaviacAINPC::ReturnToPost()
 {
-	AAIController* AIController = Cast<AAIController>(GetController());
-	if (!AIController) return EBehaviacStatus::Failure;
-
-	float Dist = FVector::Distance(GetActorLocation(), GuardCenter);
-	if (Dist < 100.0f)
+	return DispatchOrRun(TEXT("ReturnToPost"), [this]() -> EBehaviacStatus
 	{
-		UE_LOG(LogTemp, Log, TEXT("🏠 ReturnToPost: Back at guard post"));
-		if (BehaviacAgent)
+		AAIController* AIController = Cast<AAIController>(GetController());
+		if (!AIController) return EBehaviacStatus::Failure;
+	
+		float Dist = FVector::Distance(GetActorLocation(), GuardCenter);
+		if (Dist < 100.0f)
 		{
-			BehaviacAgent->SetPropertyValue(TEXT("AIState"), TEXT("Patrol"));
+			UE_LOG(LogTemp, Log, TEXT("🏠 ReturnToPost: Back at guard post"));
+			if (BehaviacAgent)
+			{
+				BehaviacAgent->SetPropertyValue(TEXT("AIState"), TEXT("Patrol"));
+			}
+			return EBehaviacStatus::Success;
 		}
-		return EBehaviacStatus::Success;
-	}
-
-	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
-	EPathFollowingRequestResult::Type Result = AIController->MoveToLocation(GuardCenter, 80.0f);
-	if (Result == EPathFollowingRequestResult::RequestSuccessful ||
-		Result == EPathFollowingRequestResult::AlreadyAtGoal)
-	{
-		UE_LOG(LogTemp, Log, TEXT("🏠 ReturnToPost: Heading back (dist=%.0f)"), Dist);
-		return EBehaviacStatus::Running;
-	}
-
-	return EBehaviacStatus::Failure;
+	
+		GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
+		EPathFollowingRequestResult::Type Result = AIController->MoveToLocation(GuardCenter, 80.0f);
+		if (Result == EPathFollowingRequestResult::RequestSuccessful ||
+			Result == EPathFollowingRequestResult::AlreadyAtGoal)
+		{
+			UE_LOG(LogTemp, Log, TEXT("🏠 ReturnToPost: Heading back (dist=%.0f)"), Dist);
+			return EBehaviacStatus::Running;
+		}
+	
+		return EBehaviacStatus::Failure;
+	});
 }
 
 EBehaviacStatus ABehaviacAINPC::ClearLastKnownPos()
 {
-	bHasLastKnownPos = false;
-	LastKnownPlayerPos = FVector::ZeroVector;
-	TargetPlayer = nullptr;
-
-	if (BehaviacAgent)
+	return DispatchOrRun(TEXT("ClearLastKnownPos"), [this]() -> EBehaviacStatus
 	{
-		BehaviacAgent->SetPropertyValue(TEXT("AIState"), TEXT("Patrol"));
-	}
-
-	UE_LOG(LogTemp, Warning, TEXT("🔍 ClearLastKnownPos: Investigation complete, returning to patrol"));
-	return EBehaviacStatus::Success;
+		bHasLastKnownPos = false;
+		LastKnownPlayerPos = FVector::ZeroVector;
+		TargetPlayer = nullptr;
+	
+		if (BehaviacAgent)
+		{
+			BehaviacAgent->SetPropertyValue(TEXT("AIState"), TEXT("Patrol"));
+		}
+	
+		UE_LOG(LogTemp, Warning, TEXT("🔍 ClearLastKnownPos: Investigation complete, returning to patrol"));
+		return EBehaviacStatus::Success;
+	});
 }
 

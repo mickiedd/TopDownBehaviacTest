@@ -29,9 +29,10 @@ void UPuertsNPCComponent::BeginPlay()
         return;
     }
 
-    // Pass the owning NPC actor into JS as "self"
+    // Pass owning actor as "self" and this component as "btBridge" into JS
     TArray<TPair<FString, UObject*>> Args;
     Args.Add(TPair<FString, UObject*>(TEXT("self"), Owner));
+    Args.Add(TPair<FString, UObject*>(TEXT("btBridge"), this));
 
     JsEnv->Start(ScriptModule, Args);
 }
@@ -45,4 +46,17 @@ void UPuertsNPCComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
         JsEnv.Reset();
     }
     Super::EndPlay(EndPlayReason);
+}
+
+int32 UPuertsNPCComponent::DispatchBTAction(const FString& ActionName)
+{
+    if (!OnBTAction.IsBound())
+    {
+        // No JS handler — return Running so BT keeps ticking
+        return 0;
+    }
+
+    PendingResult = 0; // default: Running
+    OnBTAction.Broadcast(ActionName);
+    return PendingResult;
 }

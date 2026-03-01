@@ -6,6 +6,7 @@
 #include "GameFramework/Character.h"
 #include "TopDownBehaviacTestCharacter.h"
 #include "BehaviacTypes.h" // For EBehaviacStatus
+#include "PuertsNPCComponent.h"
 #include "BehaviacAINPC.generated.h"
 
 class UBehaviacAgentComponent;
@@ -31,6 +32,10 @@ public:
 	// Behaviac Agent Component - The AI brain
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AI|Behaviac")
 	UBehaviacAgentComponent* BehaviacAgent;
+
+	// Puerts JS bridge component
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AI|Puerts")
+	UPuertsNPCComponent* PuertsNPC;
 
 	// Behavior tree to load on BeginPlay
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Behaviac")
@@ -133,8 +138,24 @@ public:
 	float GetLocationZ() const { return GetActorLocation().Z; }
 	UFUNCTION(BlueprintCallable, Category = "AI|JS")
 	float GetSpeedXY() const { const FVector V = GetVelocity(); return FMath::Sqrt(V.X*V.X + V.Y*V.Y); }
+	UFUNCTION(BlueprintCallable, Category = "AI|JS")
+	float GetDistanceToTarget() const;
+	UFUNCTION(BlueprintCallable, Category = "AI|JS")
+	void JS_MoveToTarget();
+	UFUNCTION(BlueprintCallable, Category = "AI|JS")
+	void JS_Patrol();
+	UFUNCTION(BlueprintCallable, Category = "AI|JS")
+	void JS_StopMovement();
+	UFUNCTION(BlueprintCallable, Category = "AI|JS")
+	void JS_LookAround();
 
 private:
+	/**
+	 * If PuertsNPC has a JS handler bound, dispatch the action to JS and return its result.
+	 * Otherwise falls through to the provided C++ lambda.
+	 */
+	EBehaviacStatus DispatchOrRun(const FString& ActionName, TFunction<EBehaviacStatus()> CppImpl);
+
 	// Patrol points
 	TArray<FVector> PatrolPoints;
 	int32 CurrentPatrolIndex;
