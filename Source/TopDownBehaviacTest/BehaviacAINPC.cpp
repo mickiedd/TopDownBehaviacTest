@@ -116,7 +116,7 @@ void ABehaviacAINPC::BeginPlay()
 	}
 
 	// Load behavior tree if assigned
-	if (BehaviacAgent && BehaviorTree)
+	if (BehaviacAgent)
 	{
 		// Set initial properties
 		BehaviacAgent->SetFloatProperty(TEXT("DetectionRadius"), DetectionRadius);
@@ -126,23 +126,39 @@ void ABehaviacAINPC::BeginPlay()
 		BehaviacAgent->SetPropertyValue(TEXT("HasTarget"), TEXT("false"));
 		BehaviacAgent->SetPropertyValue(TEXT("AIState"), TEXT("Patrol"));
 
-		// Load and start behavior tree
-		bool bLoaded = BehaviacAgent->LoadBehaviorTree(BehaviorTree);
-		
-		if (bLoaded)
+		// Always reload from XML file directly so edits take effect without reimporting the asset.
+		// Falls back to the assigned BehaviorTree asset if the file path is unavailable.
+		UBehaviacBehaviorTree* TreeToLoad = nullptr;
+		if (BehaviorTree && !BehaviorTree->SourceFilePath.IsEmpty())
 		{
-			UE_LOG(LogTemp, Warning, TEXT("🌳 BehaviacAINPC [%s]: Behavior tree loaded successfully!"), *GetName());
-			UE_LOG(LogTemp, Warning, TEXT("🎬 Behavior tree will start ticking every frame..."));
+			UBehaviacBehaviorTree* FromFile = UBehaviacBehaviorTreeLibrary::LoadBehaviorTreeFromFile(this, BehaviorTree->SourceFilePath);
+			if (FromFile)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("🌳 [%s] Loaded BT from XML: %s"), *GetName(), *BehaviorTree->SourceFilePath);
+				TreeToLoad = FromFile;
+			}
+		}
+		if (!TreeToLoad)
+		{
+			TreeToLoad = BehaviorTree;
+		}
+
+		if (TreeToLoad)
+		{
+			bool bLoaded = BehaviacAgent->LoadBehaviorTree(TreeToLoad);
+			if (bLoaded)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("✅ [%s]: Behavior tree loaded."), *GetName());
+			}
+			else
+			{
+				UE_LOG(LogTemp, Error, TEXT("❌ [%s]: Failed to load behavior tree!"), *GetName());
+			}
 		}
 		else
 		{
-			UE_LOG(LogTemp, Error, TEXT("❌ BehaviacAINPC [%s]: Failed to load behavior tree!"), *GetName());
+			UE_LOG(LogTemp, Error, TEXT("❌ [%s]: No behavior tree assigned!"), *GetName());
 		}
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("❌ BehaviacAINPC [%s]: No behavior tree assigned! (Agent=%d, Tree=%d)"), 
-			*GetName(), BehaviacAgent != nullptr, BehaviorTree != nullptr);
 	}
 }
 
