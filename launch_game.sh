@@ -25,6 +25,16 @@ if [ ! -f "$UPROJECT_PATH" ]; then
 	exit 1
 fi
 
+# ── TypeScript compile ───────────────────────────────────────────────────────
+echo "==> Compiling TypeScript..."
+TSC=$(which tsc 2>/dev/null || true)
+if [ -z "$TSC" ]; then
+	echo "Warning: tsc not found in PATH, skipping TypeScript compile"
+else
+	"$TSC" -p "$BASE_DIR/TypeScript/tsconfig.json"
+	echo "==> TypeScript compile succeeded."
+fi
+
 # ── Build ────────────────────────────────────────────────────────────────────
 echo "==> Building TopDownBehaviacTestEditor (Development)..."
 if [ ! -x "$UBT" ]; then
