@@ -160,6 +160,7 @@ EBehaviacStatus UBehaviacSequenceTask::OnUpdate(UBehaviacAgentComponent* Agent, 
 
 UBehaviacParallel::UBehaviacParallel()
 	: FailurePolicy(EBehaviacParallelPolicy::FailOnOne_SucceedOnAll)
+	, SuccessPolicy(EBehaviacParallelPolicy::FailOnOne_SucceedOnAll)
 	, ChildFinishPolicy(EBehaviacChildFinishPolicy::Once)
 {
 }
@@ -177,10 +178,23 @@ void UBehaviacParallel::LoadFromProperties(int32 Version, const FString& InAgent
 	{
 		if (Prop.Name == TEXT("FailurePolicy"))
 		{
-			if (Prop.Value == TEXT("FAIL_ON_ONE"))
+			// Accept both legacy "FAIL_ON_*" strings and XML enum-name strings
+			if (Prop.Value == TEXT("FAIL_ON_ONE") || Prop.Value == TEXT("FailOnOne_SucceedOnAll"))
 				FailurePolicy = EBehaviacParallelPolicy::FailOnOne_SucceedOnAll;
-			else if (Prop.Value == TEXT("FAIL_ON_ALL"))
+			else if (Prop.Value == TEXT("FAIL_ON_ALL") || Prop.Value == TEXT("FailOnAll_SucceedOnOne"))
 				FailurePolicy = EBehaviacParallelPolicy::FailOnAll_SucceedOnOne;
+			else if (Prop.Value == TEXT("FailOnOne_SucceedOnOne"))
+				FailurePolicy = EBehaviacParallelPolicy::FailOnOne_SucceedOnOne;
+		}
+		else if (Prop.Name == TEXT("SuccessPolicy"))
+		{
+			// Accept both legacy and XML enum-name strings
+			if (Prop.Value == TEXT("FAIL_ON_ONE") || Prop.Value == TEXT("FailOnOne_SucceedOnAll"))
+				SuccessPolicy = EBehaviacParallelPolicy::FailOnOne_SucceedOnAll;
+			else if (Prop.Value == TEXT("FAIL_ON_ALL") || Prop.Value == TEXT("FailOnAll_SucceedOnOne"))
+				SuccessPolicy = EBehaviacParallelPolicy::FailOnAll_SucceedOnOne;
+			else if (Prop.Value == TEXT("FailOnOne_SucceedOnOne"))
+				SuccessPolicy = EBehaviacParallelPolicy::FailOnOne_SucceedOnOne;
 		}
 		else if (Prop.Name == TEXT("ChildFinishPolicy"))
 		{
@@ -193,6 +207,10 @@ void UBehaviacParallel::LoadFromProperties(int32 Version, const FString& InAgent
 			}
 		}
 	}
+
+	UE_LOG(LogBehaviac, Log,
+		TEXT("[Parallel] Loaded — FailurePolicy=%d SuccessPolicy=%d ChildFinishPolicy=%d"),
+		(int32)FailurePolicy, (int32)SuccessPolicy, (int32)ChildFinishPolicy);
 }
 
 UBehaviacParallelTask::UBehaviacParallelTask()
@@ -220,6 +238,13 @@ void UBehaviacParallelTask::Reset(UBehaviacAgentComponent* Agent)
 
 bool UBehaviacParallelTask::OnEnter(UBehaviacAgentComponent* Agent)
 {
+	const UBehaviacParallel* ParallelNode = Cast<UBehaviacParallel>(Node);
+	UE_LOG(LogBehaviac, Log,
+		TEXT("[Parallel] ENTER — FailurePolicy=%d SuccessPolicy=%d ChildFinishPolicy=%d Children=%d"),
+		ParallelNode ? (int32)ParallelNode->FailurePolicy : -1,
+		ParallelNode ? (int32)ParallelNode->SuccessPolicy : -1,
+		ParallelNode ? (int32)ParallelNode->ChildFinishPolicy : -1,
+		ChildTasks.Num());
 	return true;
 }
 
@@ -269,21 +294,30 @@ EBehaviacStatus UBehaviacParallelTask::OnUpdate(UBehaviacAgentComponent* Agent, 
 		}
 	}
 
-	// Determine result based on policy
+	// Determine failure first
 	switch (ParallelNode->FailurePolicy)
 	{
 	case EBehaviacParallelPolicy::FailOnOne_SucceedOnAll:
 		if (FailCount > 0) return EBehaviacStatus::Failure;
-		if (SuccessCount == ChildTasks.Num()) return EBehaviacStatus::Success;
 		break;
-
 	case EBehaviacParallelPolicy::FailOnAll_SucceedOnOne:
-		if (SuccessCount > 0) return EBehaviacStatus::Success;
 		if (FailCount == ChildTasks.Num()) return EBehaviacStatus::Failure;
 		break;
-
 	case EBehaviacParallelPolicy::FailOnOne_SucceedOnOne:
 		if (FailCount > 0) return EBehaviacStatus::Failure;
+		break;
+	}
+
+	// Then determine success
+	switch (ParallelNode->SuccessPolicy)
+	{
+	case EBehaviacParallelPolicy::FailOnOne_SucceedOnAll:
+		if (SuccessCount == ChildTasks.Num()) return EBehaviacStatus::Success;
+		break;
+	case EBehaviacParallelPolicy::FailOnAll_SucceedOnOne:
+		if (SuccessCount > 0) return EBehaviacStatus::Success;
+		break;
+	case EBehaviacParallelPolicy::FailOnOne_SucceedOnOne:
 		if (SuccessCount > 0) return EBehaviacStatus::Success;
 		break;
 	}
@@ -667,20 +701,28 @@ EBehaviacStatus UBehaviacWithPreconditionTask::OnUpdate(UBehaviacAgentComponent*
 {
 	if (ChildTasks.Num() < 2)
 	{
+		UE_LOG(LogBehaviac, Warning, TEXT("[WithPrecondition] 需要2个子节点，当前只有 %d 个"), ChildTasks.Num());
 		return EBehaviacStatus::Failure;
 	}
 
-	// First child: precondition
+	// 如果第二个子节点正在运行，继续执行它，不重新检查条件
+	if (ChildStatus == EBehaviacStatus::Running)
+	{
+		UE_LOG(LogBehaviac, Verbose, TEXT("[WithPrecondition] 子节点正在运行，继续执行"));
+		return ChildTasks[1]->Execute(Agent, ChildStatus);
+	}
+
+	// 否则，检查条件
 	EBehaviacStatus PrecondResult = ChildTasks[0]->Execute(Agent, EBehaviacStatus::Invalid);
 
-	BEHAVIAC_VLOG(TEXT("[WithPrecondition] Precondition → %s"),
-		PrecondResult == EBehaviacStatus::Success ? TEXT("PASS") : TEXT("FAIL"));
+	UE_LOG(LogBehaviac, Verbose, TEXT("[WithPrecondition] 条件检查 → %s"),
+		PrecondResult == EBehaviacStatus::Success ? TEXT("通过") : TEXT("失败"));
 
 	if (PrecondResult != EBehaviacStatus::Success)
 	{
 		return EBehaviacStatus::Failure;
 	}
 
-	// Second child: the actual action
-	return ChildTasks[1]->Execute(Agent, ChildStatus);
+	// 条件通过，执行第二个子节点
+	return ChildTasks[1]->Execute(Agent, EBehaviacStatus::Invalid);
 }

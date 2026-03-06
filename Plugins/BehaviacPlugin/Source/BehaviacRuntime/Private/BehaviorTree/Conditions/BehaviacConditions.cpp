@@ -51,14 +51,34 @@ EBehaviacStatus UBehaviacConditionTask::OnUpdate(UBehaviacAgentComponent* Agent,
 	FString LeftStr = CondNode->LeftOperand;
 	FString RightStr = CondNode->RightOperand;
 
-	// Resolve property references
+	// 解析左操作数：先尝试作为属性，如果为空则尝试作为方法
 	if (LeftStr.StartsWith(TEXT("Self.")))
 	{
+		FString PropName = LeftStr.Mid(5); // 移除 "Self." 前缀
 		LeftStr = Agent->GetPropertyValue(LeftStr);
+
+		// 如果属性不存在（返回空字符串），尝试作为方法调用
+		if (LeftStr.IsEmpty())
+		{
+			EBehaviacStatus MethodResult = Agent->ExecuteMethod(PropName);
+			// 将方法结果转换为字符串：Success=true, 其他=false
+			LeftStr = (MethodResult == EBehaviacStatus::Success) ? TEXT("true") : TEXT("false");
+			UE_LOG(LogBehaviac, Verbose, TEXT("[Condition] 调用方法 '%s'，结果: %s"), *PropName, *LeftStr);
+		}
 	}
+
+	// 解析右操作数
 	if (RightStr.StartsWith(TEXT("Self.")))
 	{
+		FString PropName = RightStr.Mid(5);
 		RightStr = Agent->GetPropertyValue(RightStr);
+
+		if (RightStr.IsEmpty())
+		{
+			EBehaviacStatus MethodResult = Agent->ExecuteMethod(PropName);
+			RightStr = (MethodResult == EBehaviacStatus::Success) ? TEXT("true") : TEXT("false");
+			UE_LOG(LogBehaviac, Verbose, TEXT("[Condition] 调用方法 '%s'，结果: %s"), *PropName, *RightStr);
+		}
 	}
 
 	return EvaluateComparison(LeftStr, RightStr, CondNode->Operator) ?

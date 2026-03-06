@@ -16,6 +16,13 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FBehaviacMethodDelegate, const FStr
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FBehaviacSignalDelegate, const FString&, SignalName);
 
 /**
+ * Single-parameter delegate used for TypeScript method handlers.
+ * TS binds to OnMethodNameCalled, executes its logic, then calls SetTSMethodResult()
+ * to store the return value — all synchronously on the game thread before Broadcast returns.
+ */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FBehaviacMethodNameDelegate, const FString&, MethodName);
+
+/**
  * UBehaviacAgentComponent: The central AI agent component for Unreal Engine 5.
  *
  * Attach this to any Actor to give it behavior tree / FSM / HTN capabilities.
@@ -72,10 +79,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Behaviac|Agent")
 	bool bAutoTick;
 
-	/** The default behavior tree to load on BeginPlay */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Behaviac|Agent")
-	UBehaviacBehaviorTree* DefaultBehaviorTree;
-
 	// --- Property System (Blackboard) ---
 
 	/** Set a property value by name */
@@ -114,6 +117,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Behaviac|Properties")
 	bool GetBoolProperty(const FString& PropertyName) const;
 
+	/** Set an int64 property */
+	UFUNCTION(BlueprintCallable, Category = "Behaviac|Properties")
+	void SetInt64Property(const FString& PropertyName, int64 Value);
+
+	/** Get an int64 property */
+	UFUNCTION(BlueprintCallable, Category = "Behaviac|Properties")
+	int64 GetInt64Property(const FString& PropertyName) const;
+
 	// --- Method System ---
 
 	/** Execute a named method on this agent. Override in Blueprints or bind delegates. */
@@ -130,6 +141,33 @@ public:
 
 	/** Register a method handler (C++ callback) */
 	void RegisterMethodHandler(const FString& MethodName, TFunction<EBehaviacStatus()> Handler);
+
+	/**
+	 * TypeScript method handler bridge.
+	 *
+	 * TypeScript usage:
+	 *   agent.OnMethodNameCalled.Add((methodName) => {
+	 *       if (methodName === "PickWanderTarget") {
+	 *           // ... do work ...
+	 *           agent.SetTSMethodResult(methodName, 1); // Success
+	 *       }
+	 *   });
+	 *
+	 * Fired synchronously by ExecuteMethod when no C++ handler is registered for
+	 * the method. Because Puerts runs on the game thread, the TS callback completes
+	 * before Broadcast() returns, so SetTSMethodResult() is always called before
+	 * ExecuteMethod reads the stored value.
+	 */
+	UPROPERTY(BlueprintAssignable, Category = "Behaviac|Methods")
+	FBehaviacMethodNameDelegate OnMethodNameCalled;
+
+	/**
+	 * Called by TypeScript inside an OnMethodNameCalled handler to return a status.
+	 * @param MethodName  Must match the name received in OnMethodNameCalled.
+	 * @param Result      The EBehaviacStatus value to return from ExecuteMethod.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Behaviac|Methods")
+	void SetTSMethodResult(const FString& MethodName, EBehaviacStatus Result);
 
 	// --- Signal System ---
 
@@ -189,6 +227,13 @@ protected:
 	/** Registered C++ method handlers */
 	TMap<FString, TFunction<EBehaviacStatus()>> MethodHandlers;
 
+	/**
+	 * Pending results written by TypeScript via SetTSMethodResult().
+	 * Consumed immediately by ExecuteMethod() after OnMethodNameCalled fires.
+	 */
+	TMap<FString, EBehaviacStatus> MethodNameResults;
+
 	/** Critical section for thread safety */
+
 	mutable FCriticalSection PropertyLock;
 };

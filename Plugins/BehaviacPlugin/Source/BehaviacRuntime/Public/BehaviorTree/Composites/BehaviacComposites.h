@@ -88,6 +88,9 @@ public:
 	EBehaviacParallelPolicy FailurePolicy;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Behaviac|Parallel")
+	EBehaviacParallelPolicy SuccessPolicy;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Behaviac|Parallel")
 	EBehaviacChildFinishPolicy ChildFinishPolicy;
 };
 

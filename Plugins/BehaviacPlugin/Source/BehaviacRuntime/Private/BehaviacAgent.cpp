@@ -8,7 +8,6 @@
 
 UBehaviacAgentComponent::UBehaviacAgentComponent()
 	: bAutoTick(true)
-	, DefaultBehaviorTree(nullptr)
 	, CurrentTreeTask(nullptr)
 	, CurrentTreeAsset(nullptr)
 {
@@ -19,11 +18,6 @@ UBehaviacAgentComponent::UBehaviacAgentComponent()
 void UBehaviacAgentComponent::BeginPlay()
 {
 	Super::BeginPlay();
-
-	if (DefaultBehaviorTree)
-	{
-		LoadBehaviorTree(DefaultBehaviorTree);
-	}
 }
 
 void UBehaviacAgentComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -209,13 +203,37 @@ bool UBehaviacAgentComponent::GetBoolProperty(const FString& PropertyName) const
 	return Val.Equals(TEXT("true"), ESearchCase::IgnoreCase) || Val == TEXT("1");
 }
 
+void UBehaviacAgentComponent::SetInt64Property(const FString& PropertyName, int64 Value)
+{
+	SetPropertyValue(PropertyName, FString::Printf(TEXT("%lld"), Value));
+}
+
+int64 UBehaviacAgentComponent::GetInt64Property(const FString& PropertyName) const
+{
+	return FCString::Atoi64(*GetPropertyValue(PropertyName));
+}
+
 // --- Method System ---
 
 EBehaviacStatus UBehaviacAgentComponent::ExecuteMethod(const FString& MethodName)
 {
 	BEHAVIAC_VLOG(TEXT("[Behaviac] ExecuteMethod called for: '%s'"), *MethodName);
 
-	// First check registered C++ handlers
+	// Try TypeScript handler: fire OnMethodNameCalled synchronously, then read the result
+	// that TS deposited via SetTSMethodResult() during the broadcast.
+	if (OnMethodNameCalled.IsBound())
+	{
+		MethodNameResults.Remove(MethodName);
+		OnMethodNameCalled.Broadcast(MethodName);
+		if (EBehaviacStatus* TSResult = MethodNameResults.Find(MethodName))
+		{
+			EBehaviacStatus Result = *TSResult;
+			MethodNameResults.Remove(MethodName);
+			return Result;
+		}
+	}
+
+	// Then check registered C++ handlers
 	if (TFunction<EBehaviacStatus()>* Handler = MethodHandlers.Find(MethodName))
 	{
 		BEHAVIAC_VLOG(TEXT("[Behaviac] Found C++ handler for '%s', calling it..."), *MethodName);
@@ -257,6 +275,11 @@ EBehaviacStatus UBehaviacAgentComponent::ExecuteMethod(const FString& MethodName
 void UBehaviacAgentComponent::RegisterMethodHandler(const FString& MethodName, TFunction<EBehaviacStatus()> Handler)
 {
 	MethodHandlers.Add(MethodName, MoveTemp(Handler));
+}
+
+void UBehaviacAgentComponent::SetTSMethodResult(const FString& MethodName, EBehaviacStatus Result)
+{
+	MethodNameResults.Add(MethodName, Result);
 }
 
 // --- Signal System ---

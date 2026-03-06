@@ -58,9 +58,18 @@ EBehaviacStatus UBehaviacActionTask::OnUpdate(UBehaviacAgentComponent* Agent, EB
 	BEHAVIAC_VLOG(TEXT("[Behaviac] ActionTask::OnUpdate: Method '%s' returned %d (Invalid=0, Success=1, Failure=2, Running=3)"), 
 		*ActionNode->MethodName, (int32)Result);
 
-	if (Result != EBehaviacStatus::Invalid)
+	// Running always wins — an async method in progress must not be overridden.
+	if (Result == EBehaviacStatus::Running)
 	{
-		return Result;
+		return EBehaviacStatus::Running;
+	}
+
+	// ResultOption = BT_RUNNING means "let the method's terminal result (Success/Failure) through".
+	// ResultOption = BT_SUCCESS / BT_FAILURE is the designer's explicit override for
+	// terminal results only, and wins over the method's Success/Failure return value.
+	if (ActionNode->ResultOption == EBehaviacStatus::Running)
+	{
+		return (Result != EBehaviacStatus::Invalid) ? Result : EBehaviacStatus::Success;
 	}
 
 	return ActionNode->ResultOption;
@@ -284,6 +293,7 @@ bool UBehaviacWaitTask::OnEnter(UBehaviacAgentComponent* Agent)
 		StartTime = FPlatformTime::Seconds();
 	}
 
+	UE_LOG(LogBehaviac, Log, TEXT("[Wait] ENTER — duration=%.2fs, startTime=%.3f"), WaitDuration, StartTime);
 	return true;
 }
 
@@ -300,11 +310,14 @@ EBehaviacStatus UBehaviacWaitTask::OnUpdate(UBehaviacAgentComponent* Agent, EBeh
 		CurrentTime = FPlatformTime::Seconds();
 	}
 
-	if ((CurrentTime - StartTime) >= WaitDuration)
+	const double Elapsed = CurrentTime - StartTime;
+	if (Elapsed >= WaitDuration)
 	{
+		UE_LOG(LogBehaviac, Log, TEXT("[Wait] COMPLETE — elapsed=%.3fs / %.2fs"), Elapsed, WaitDuration);
 		return EBehaviacStatus::Success;
 	}
 
+	BEHAVIAC_VLOG(TEXT("[Wait] running — elapsed=%.3fs / %.2fs"), Elapsed, WaitDuration);
 	return EBehaviacStatus::Running;
 }
 
