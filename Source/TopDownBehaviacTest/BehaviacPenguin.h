@@ -2,12 +2,12 @@
 //
 // Architecture:
 //   BT XML owns all decisions, timing, branching.
-//   TypeScript (penguin_logic.ts) implements what BT leaf nodes ask for.
-//   C++ fallbacks fire only when JS is not bound.
+//   TypeScript (penguin_logic.ts) binds directly to BehaviacAgent.OnMethodNameCalled.
+//   C++ methods remain available as native implementations callable from TS.
 //
 // Argv passed to JS:
 //   self     → ABehaviacPenguin (actor)
-//   btBridge → UPuertsNPCComponent (DispatchBTAction / SetBTResult)
+//   btBridge → UPuertsNPCComponent (JS environment bootstrap component)
 
 #pragma once
 
@@ -62,7 +62,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "AI|Mood")
 	void  SetMoodRoll(float V) { MoodRoll = V; BehaviacAgent->SetFloatProperty(TEXT("MoodRoll"), V); }
 
-	// ── BT actions — all routed through DispatchOrRun ─────────────────
+	// ── BT actions — native implementations, callable from TS ─────────
 	UFUNCTION(BlueprintCallable, Category = "AI|Actions") EBehaviacStatus RollMood();
 	UFUNCTION(BlueprintCallable, Category = "AI|Actions") EBehaviacStatus PickWanderTarget();
 	UFUNCTION(BlueprintCallable, Category = "AI|Actions") EBehaviacStatus MoveToWanderTarget();
@@ -76,9 +76,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "AI|Actions") EBehaviacStatus ExcitedJump();
 
 private:
-	/** Route BT action to JS if bound; fall back to CppImpl if not. */
-	EBehaviacStatus DispatchOrRun(const FString& ActionName, TFunction<EBehaviacStatus()> CppImpl);
-
 	void UpdateBehaviacProperties();
 
 	// C++ fallback implementations

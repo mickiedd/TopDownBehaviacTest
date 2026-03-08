@@ -1,4 +1,5 @@
 #include "PuertsNPCComponent.h"
+#include "BehaviacAgent.h"
 #include "JSAIInterface.h"
 
 UPuertsNPCComponent::UPuertsNPCComponent()
@@ -32,6 +33,11 @@ void UPuertsNPCComponent::BeginPlay()
     TArray<TPair<FString, UObject*>> Args;
     Args.Add(TPair<FString, UObject*>(TEXT("self"), Owner));
     Args.Add(TPair<FString, UObject*>(TEXT("btBridge"), this));
+
+    if (UBehaviacAgentComponent* BehaviacAgent = Owner->FindComponentByClass<UBehaviacAgentComponent>())
+    {
+        Args.Add(TPair<FString, UObject*>(TEXT("agent"), BehaviacAgent));
+    }
 
     // Pass the JSAIInterface component if present
     UJSAIInterface* JSAI = Owner->FindComponentByClass<UJSAIInterface>();

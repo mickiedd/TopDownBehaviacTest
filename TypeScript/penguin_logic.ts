@@ -1,4 +1,4 @@
-// penguin_logic.ts — TypeScript action implementations for PenguinWanderTree.
+// penguin_logic.ts — TypeScript behavior-method bindings for PenguinWanderTree.
 //
 // Rule: TypeScript ONLY implements what a BT leaf node asks for.
 //       All decisions, mood branching, timing, and sequencing live in PenguinWanderTree.xml.
@@ -12,22 +12,21 @@
 //   self.GetSpeedXY()                — 2D speed
 //   self.SetMaxSpeed(s)              — set walk speed
 //
-// Argv: self → ABehaviacPenguin, btBridge → UPuertsNPCComponent
+// Argv: self → ABehaviacPenguin, agent → UBehaviacAgentComponent
 export {};
 
 const self: any     = puerts.argv.getByName("self");
-const btBridge: any = puerts.argv.getByName("btBridge");
+const agent: any    = puerts.argv.getByName("agent") ?? self?.BehaviacAgent;
 
-if (!self || !btBridge) {
-    console.error(`[penguin_logic] ERROR: missing argv — self:${!!self} btBridge:${!!btBridge}`);
+if (!self || !agent) {
+    console.error(`[penguin_logic] ERROR: missing binding target — self:${!!self} agent:${!!agent}`);
 } else {
     const name: string = String(self.GetName());
     console.log(`[penguin_logic] ✅ Loaded for: ${name}`);
 
-    const Running    = 0;
-    const Success    = 1;
-    const Failure    = 2;
-    const FALLTHROUGH = -2147483648; // INT32_MIN → DispatchOrRun uses C++ fallback
+    const Success = 1;
+    const Failure = 2;
+    const Running = 3;
 
     // ── State ──────────────────────────────────────────────────────────────
     // Spawn position cached once (for wander radius math)
@@ -65,8 +64,9 @@ if (!self || !btBridge) {
         "MoveToWanderTarget": (): number => {
             const acceptance = self.WanderAcceptanceRadius as number;
             const result = self.NavMoveToTarget(acceptance) as number;
-            // 0=Running, 1=Success, 2=Failure
-            return result;
+            if (result === 0) return Running;
+            if (result === 1) return Success;
+            return Failure;
         },
 
         "StopMovement": (): number => {
@@ -105,35 +105,42 @@ if (!self || !btBridge) {
             return Success;
         },
 
-        // ── Goofy actions — log in JS, physics in C++ via FALLTHROUGH ─────
+        // ── Goofy actions — log in JS, perform native action in C++ ───────
         "MaybeSpin": (): number => {
             if (Math.random() < 0.4) {
                 console.log(`[penguin_logic] ${name} 🌀 MaybeSpin!`);
-                return FALLTHROUGH; // C++ does the rotation snap
+                return self.MaybeSpin() as number;
             }
             return Success; // skipped this time
         },
 
         "SpinAround": (): number => {
             console.log(`[penguin_logic] ${name} 🔄 SpinAround!`);
-            return FALLTHROUGH; // C++ does the rotation
+            return self.SpinAround() as number;
         },
 
         "ExcitedJump": (): number => {
             console.log(`[penguin_logic] ${name} 🐧💨 ExcitedJump!`);
-            return FALLTHROUGH; // C++ does LaunchCharacter
+            return self.ExcitedJump() as number;
         },
     };
 
-    // ── BT dispatch binding ────────────────────────────────────────────────
-    btBridge.OnBTAction.Add((actionName: string) => {
-        const handler = handlers[actionName];
-        if (handler) {
-            btBridge.SetBTResult(handler());
-        } else {
-            btBridge.SetBTResult(FALLTHROUGH); // unknown — let C++ handle
+    // ── Behaviac method binding ────────────────────────────────────────────
+    agent.OnMethodNameCalled.Add((methodName: string) => {
+        const handler = handlers[String(methodName)];
+        if (!handler) {
+            return;
+        }
+
+        try {
+            agent.SetTSMethodResult(methodName, handler());
+        } catch (e) {
+            console.error(`[penguin_logic] ${name} ❌ ${methodName}: ${e}`);
+            agent.SetTSMethodResult(methodName, Failure);
         }
     });
+
+    console.log(`[penguin_logic] ✅ Behaviac methods: [${Object.keys(handlers).join(", ")}]`);
 
     // ── Heartbeat log (every 5s) ───────────────────────────────────────────
     setInterval(() => {

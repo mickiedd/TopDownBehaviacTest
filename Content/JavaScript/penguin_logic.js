@@ -1,17 +1,17 @@
 "use strict";
+var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
 const self = puerts.argv.getByName("self");
-const btBridge = puerts.argv.getByName("btBridge");
-if (!self || !btBridge) {
-    console.error(`[penguin_logic] ERROR: missing argv — self:${!!self} btBridge:${!!btBridge}`);
+const agent = (_a = puerts.argv.getByName("agent")) !== null && _a !== void 0 ? _a : self === null || self === void 0 ? void 0 : self.BehaviacAgent;
+if (!self || !agent) {
+    console.error(`[penguin_logic] ERROR: missing binding target — self:${!!self} agent:${!!agent}`);
 }
 else {
     const name = String(self.GetName());
     console.log(`[penguin_logic] ✅ Loaded for: ${name}`);
-    const Running = 0;
     const Success = 1;
     const Failure = 2;
-    const FALLTHROUGH = -2147483648; // INT32_MIN → DispatchOrRun uses C++ fallback
+    const Running = 3;
     // ── State ──────────────────────────────────────────────────────────────
     // Spawn position cached once (for wander radius math)
     const spawnX = self.GetLocationX();
@@ -43,8 +43,11 @@ else {
         "MoveToWanderTarget": () => {
             const acceptance = self.WanderAcceptanceRadius;
             const result = self.NavMoveToTarget(acceptance);
-            // 0=Running, 1=Success, 2=Failure
-            return result;
+            if (result === 0)
+                return Running;
+            if (result === 1)
+                return Success;
+            return Failure;
         },
         "StopMovement": () => {
             self.NavStop();
@@ -78,33 +81,38 @@ else {
             self.SetMaxSpeed(self.WanderSpeed * 2.5);
             return Success;
         },
-        // ── Goofy actions — log in JS, physics in C++ via FALLTHROUGH ─────
+        // ── Goofy actions — log in JS, perform native action in C++ ───────
         "MaybeSpin": () => {
             if (Math.random() < 0.4) {
                 console.log(`[penguin_logic] ${name} 🌀 MaybeSpin!`);
-                return FALLTHROUGH; // C++ does the rotation snap
+                return self.MaybeSpin();
             }
             return Success; // skipped this time
         },
         "SpinAround": () => {
             console.log(`[penguin_logic] ${name} 🔄 SpinAround!`);
-            return FALLTHROUGH; // C++ does the rotation
+            return self.SpinAround();
         },
         "ExcitedJump": () => {
             console.log(`[penguin_logic] ${name} 🐧💨 ExcitedJump!`);
-            return FALLTHROUGH; // C++ does LaunchCharacter
+            return self.ExcitedJump();
         },
     };
-    // ── BT dispatch binding ────────────────────────────────────────────────
-    btBridge.OnBTAction.Add((actionName) => {
-        const handler = handlers[actionName];
-        if (handler) {
-            btBridge.SetBTResult(handler());
+    // ── Behaviac method binding ────────────────────────────────────────────
+    agent.OnMethodNameCalled.Add((methodName) => {
+        const handler = handlers[String(methodName)];
+        if (!handler) {
+            return;
         }
-        else {
-            btBridge.SetBTResult(FALLTHROUGH); // unknown — let C++ handle
+        try {
+            agent.SetTSMethodResult(methodName, handler());
+        }
+        catch (e) {
+            console.error(`[penguin_logic] ${name} ❌ ${methodName}: ${e}`);
+            agent.SetTSMethodResult(methodName, Failure);
         }
     });
+    console.log(`[penguin_logic] ✅ Behaviac methods: [${Object.keys(handlers).join(", ")}]`);
     // ── Heartbeat log (every 5s) ───────────────────────────────────────────
     setInterval(() => {
         const px = self.GetLocationX().toFixed(0);
