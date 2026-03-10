@@ -41,7 +41,7 @@
         <!-- ── SLEEPY branch (MoodRoll < 0.35) ─────────────────── -->
         <node class="Sequence" id="10">
           <node class="Condition" id="11">
-            <property name="Opl" value="MoodRoll"/>
+            <property name="Opl" value="Self.MoodRoll"/>
             <property name="Operator" value="Less"/>
             <property name="Opr" value="0.35"/>
           </node>
@@ -75,7 +75,7 @@
         <!-- ── CURIOUS branch (MoodRoll < 0.70) ────────────────── -->
         <node class="Sequence" id="20">
           <node class="Condition" id="21">
-            <property name="Opl" value="MoodRoll"/>
+            <property name="Opl" value="Self.MoodRoll"/>
             <property name="Operator" value="Less"/>
             <property name="Opr" value="0.70"/>
           </node>

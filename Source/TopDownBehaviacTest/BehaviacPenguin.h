@@ -2,8 +2,8 @@
 //
 // Architecture:
 //   BT XML owns all decisions, timing, branching.
-//   TypeScript (penguin_logic.ts) binds directly to BehaviacAgent.OnMethodNameCalled.
-//   C++ methods remain available as native implementations callable from TS.
+//   TypeScript (penguin_logic.ts) owns all BT leaf-action behavior.
+//   C++ only provides actor state, nav primitives, and BT property sync helpers.
 //
 // Argv passed to JS:
 //   self     → ABehaviacPenguin (actor)
@@ -14,8 +14,6 @@
 #include "CoreMinimal.h"
 #include "BehaviacAnimalBase.h"
 #include "BehaviacAgent.h"
-#include "BehaviacTypes.h"
-#include "BehaviorTree/BehaviacBehaviorTree.h"
 #include "PuertsNPCComponent.h"
 #include "BehaviacPenguin.generated.h"
 
@@ -43,9 +41,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Wander")
 	float WanderAcceptanceRadius = 80.f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|Wander")
-	float TurnInterpSpeed = 120.f;
-
 	/** Current mood roll [0,1) — synced to BT blackboard by RollMood() */
 	UPROPERTY(BlueprintReadOnly, Category = "AI|Mood")
 	float MoodRoll = 0.f;
@@ -60,31 +55,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "AI|Mood")
 	float GetMoodRoll() const  { return MoodRoll; }
 	UFUNCTION(BlueprintCallable, Category = "AI|Mood")
-	void  SetMoodRoll(float V) { MoodRoll = V; BehaviacAgent->SetFloatProperty(TEXT("MoodRoll"), V); }
-
-	// ── BT actions — native implementations, callable from TS ─────────
-	UFUNCTION(BlueprintCallable, Category = "AI|Actions") EBehaviacStatus RollMood();
-	UFUNCTION(BlueprintCallable, Category = "AI|Actions") EBehaviacStatus PickWanderTarget();
-	UFUNCTION(BlueprintCallable, Category = "AI|Actions") EBehaviacStatus MoveToWanderTarget();
-	UFUNCTION(BlueprintCallable, Category = "AI|Actions") EBehaviacStatus StopMovement();
-	UFUNCTION(BlueprintCallable, Category = "AI|Actions") EBehaviacStatus LookAround();
-	UFUNCTION(BlueprintCallable, Category = "AI|Actions") EBehaviacStatus SetSleepySpeed();
-	UFUNCTION(BlueprintCallable, Category = "AI|Actions") EBehaviacStatus SetWanderSpeed();
-	UFUNCTION(BlueprintCallable, Category = "AI|Actions") EBehaviacStatus SetExcitedSpeed();
-	UFUNCTION(BlueprintCallable, Category = "AI|Actions") EBehaviacStatus MaybeSpin();
-	UFUNCTION(BlueprintCallable, Category = "AI|Actions") EBehaviacStatus SpinAround();
-	UFUNCTION(BlueprintCallable, Category = "AI|Actions") EBehaviacStatus ExcitedJump();
+	void  SetMoodRoll(float V)
+	{
+		MoodRoll = V;
+		if (BehaviacAgent)
+		{
+			BehaviacAgent->SetFloatProperty(TEXT("MoodRoll"), V);
+		}
+	}
 
 private:
 	void UpdateBehaviacProperties();
-
-	// C++ fallback implementations
-	EBehaviacStatus CPP_RollMood();
-	EBehaviacStatus CPP_LookAround();
-
-	int32   TickCounter        = 0;
-
-	float LookAroundTargetYaw  = 0.f;
-	bool  bLookingAround       = false;
-	bool  bLookAroundComplete  = false;
 };
